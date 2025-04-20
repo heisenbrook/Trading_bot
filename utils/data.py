@@ -1,8 +1,7 @@
 from tvDatafeed import TvDatafeed, Interval
 import pandas as pd
+import numpy as np
 from keys import user, psw
-
-
 
 def RSI(n_candles, data):
     delta = data['close'].diff()
@@ -33,12 +32,13 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
                       exchange='BINANCE', 
                       interval=Interval.in_daily, 
                       n_bars=10000,
-                      extended_session=True)
+                      extended_session=False)
 
 btcusdt.drop('symbol', axis=1, inplace=True)
 
-btcusdt['RSI'] = RSI(2, btcusdt)
-btcusdt['Stoch_RSI'] = Stoch_RSI(2, btcusdt['RSI'])
+btcusdt['RSI'] = RSI(14, btcusdt)
+btcusdt['Stoch_RSI'] = Stoch_RSI(14, btcusdt['RSI'])
+btcusdt['buy/sell'] = np.where(btcusdt['RSI'] + btcusdt['Stoch_RSI'] > 50, 'Sell', 'Buy')
 
 btcusdt.to_csv('data.csv')
 
