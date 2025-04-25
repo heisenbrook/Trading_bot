@@ -30,6 +30,15 @@ def cyclic_enc(data, col, period):
     data[f'{col}_cos'] = np.cos(2 * np.pi * data[col] / period)
     return data
 
+#  def create_seq(data, labels, seq_len, horizon=1):
+#      x, y = [],[]
+#      for i in range(len(data) - seq_len):
+#          if i == 0:
+#              continue
+#          x.append(data[i:i+seq_len])
+#          y.append(labels[i-1:])
+
+
 def preprocess(data):
     data.drop('symbol', axis=1, inplace=True)
 
@@ -41,14 +50,14 @@ def preprocess(data):
     prices = data[['open','high','low','close']]
     prices_min_max = min_max_scaler.fit_transform(prices)
 
-    data['day_of_the_week'] = data.index.day % 7
-    data = cyclic_enc(data, 'day_of_the_week', 7)
+    data['day_of_the_month'] = data.index.day
+    data = cyclic_enc(data, 'day_of_the_month', data.index.days_in_month)
 
     data[['open','high','low','close']] = prices_min_max
 
-    data.insert(0, 'day_of_the_week', data.pop('day_of_the_week'))
-    data.insert(1, 'day_of_the_week_sin', data.pop('day_of_the_week_sin'))
-    data.insert(2, 'day_of_the_week_cos', data.pop('day_of_the_week_cos'))
+    data.insert(0, 'day_of_the_month', data.pop('day_of_the_month'))
+    data.insert(1, 'day_of_the_month_sin', data.pop('day_of_the_month_sin'))
+    data.insert(2, 'day_of_the_month_cos', data.pop('day_of_the_month_cos'))
 
     
 
@@ -63,7 +72,13 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
 
 preprocess(btcusdt)
 
+labels = btcusdt.shift(-1)
+
+btcusdt = btcusdt.iloc[:-1]
+labels = labels.iloc[:-1]
+
 btcusdt.to_csv('data.csv')
+labels.to_csv('labels.csv')
 
 
 
