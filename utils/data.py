@@ -30,13 +30,13 @@ def cyclic_enc(data, col, period):
     data[f'{col}_cos'] = np.cos(2 * np.pi * data[col] / period)
     return data
 
-#  def create_seq(data, labels, seq_len, horizon=1):
-#      x, y = [],[]
-#      for i in range(len(data) - seq_len):
-#          if i == 0:
-#              continue
-#          x.append(data[i:i+seq_len])
-#          y.append(labels[i-1:])
+def create_seq(data, labels, seq_len, horizon=1):
+    x, y = [],[]
+    for i in range(len(data) - seq_len):
+       if i == 0:
+          continue
+       x.append(data[i:i+seq_len])
+       y.append(labels[i-1:])
 
 
 def preprocess(data):
@@ -44,20 +44,23 @@ def preprocess(data):
 
     data['RSI'] = RSI(14, data)
     data['Stoch_RSI'] = Stoch_RSI(14, data['RSI'])
-    #data['buy/sell'] = np.where(data['RSI'] + data['Stoch_RSI'] > 50, 'Sell', 'Buy')
+    data['log_returns'] = np.log(data['close'] / data['close'].shift(1))
 
     min_max_scaler = MinMaxScaler()
-    prices = data[['open','high','low','close']]
+    prices = data[['open','high','low','close','volume','RSI','Stoch_RSI']]
     prices_min_max = min_max_scaler.fit_transform(prices)
+    data[['open','high','low','close','volume','RSI','Stoch_RSI']] = prices_min_max
 
     data['day_of_the_month'] = data.index.day
-    data = cyclic_enc(data, 'day_of_the_month', data.index.days_in_month)
-
-    data[['open','high','low','close']] = prices_min_max
+    data['interval'] = data.groupby(data['day_of_the_month']).cumcount() + 1
+    data = cyclic_enc(data, 'interval', data['interval'].max())
 
     data.insert(0, 'day_of_the_month', data.pop('day_of_the_month'))
-    data.insert(1, 'day_of_the_month_sin', data.pop('day_of_the_month_sin'))
-    data.insert(2, 'day_of_the_month_cos', data.pop('day_of_the_month_cos'))
+    data.insert(1, 'interval', data.pop('interval'))
+    data.insert(2, 'interval_sin', data.pop('interval_sin'))
+    data.insert(3, 'interval_cos', data.pop('interval_cos'))
+
+
 
     
 
@@ -66,11 +69,13 @@ tv = TvDatafeed(user, psw)
 
 btcusdt = tv.get_hist(symbol='BTCUSDT', 
                       exchange='BINANCE', 
-                      interval=Interval.in_daily, 
+                      interval=Interval.in_4_hour, 
                       n_bars=10000,
                       extended_session=True)
 
 preprocess(btcusdt)
+
+btcusdt = btcusdt.iloc[27:]
 
 labels = btcusdt.shift(-1)
 
