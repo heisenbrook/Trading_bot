@@ -28,15 +28,29 @@ def Stoch_RSI(n_candles, rsi):
 def cyclic_enc(data, col, period):
     data[f'{col}_sin'] = np.sin(2 * np.pi * data[col] / period)
     data[f'{col}_cos'] = np.cos(2 * np.pi * data[col] / period)
+
     return data
 
-def create_seq(data, labels, seq_len, horizon=1):
+def create_labels(data):
+    label = data.shift(-1)
+    label.iloc[:-1]
+    label.drop(['day_of_the_month','interval','interval_sin','interval_cos','high','low','volume','RSI','Stoch_RSI','log_returns'], axis=1, inplace=True)
+    label = label.rename({'open':'next_open','close':'next_close'}, axis='columns')
+
+    return label
+
+def create_seq(features, win_size=24, horizon=1, target_col=['next_open','next_close']):
+    labels = create_labels(features)
+    data = features.join(labels)
+    data = data.reset_index(drop=True)
+    feat_cols = data.columns.to_list()
+
     x, y = [],[]
-    for i in range(len(data) - seq_len):
-       if i == 0:
-          continue
-       x.append(data[i:i+seq_len])
-       y.append(labels[i-1:])
+    for i in range(len(data) - win_size - horizon +1):
+        x.append(data[feat_cols].values[i:i+win_size])
+        y.append(data[target_col].values[i+win_size:i+win_size+horizon])
+
+    return np.array(x), np.array(y)
 
 
 def preprocess(data):
@@ -60,6 +74,10 @@ def preprocess(data):
     data.insert(2, 'interval_sin', data.pop('interval_sin'))
     data.insert(3, 'interval_cos', data.pop('interval_cos'))
 
+    data = data.iloc[27:]
+
+    return data
+
 
 
     
@@ -73,17 +91,11 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
                       n_bars=10000,
                       extended_session=True)
 
-preprocess(btcusdt)
+btcusdt = preprocess(btcusdt)
 
-btcusdt = btcusdt.iloc[27:]
+x, y = create_seq(btcusdt)
 
-labels = btcusdt.shift(-1)
 
-btcusdt = btcusdt.iloc[:-1]
-labels = labels.iloc[:-1]
-
-btcusdt.to_csv('data.csv')
-labels.to_csv('labels.csv')
 
 
 
