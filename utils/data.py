@@ -37,7 +37,7 @@ def Stoch_RSI(n_candles, rsi):
 #     return pe
 
 def create_labels(data):
-    label = data.shift(-1)
+    label = data.shift(-6)
     label.iloc[:-1]
     label.drop(['high','low','volume','RSI','Stoch_RSI','log_returns'], axis=1, inplace=True)
     label = label.rename({'open':'next_open','close':'next_close'}, axis='columns')
