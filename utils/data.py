@@ -1,8 +1,39 @@
-from tvDatafeed import TvDatafeed, Interval
 from sklearn.preprocessing import MinMaxScaler
+from torch.utils.data import Dataset, DataLoader, random_split
+import torch
 import pandas as pd
 import numpy as np
-from keys import user, psw
+
+class BTCDataset(Dataset):
+    def __init__(self, features, win_size=24, horizon=6):
+        features = preprocess(features)
+        labels = create_labels(features)
+
+        self.data = features.join(labels)
+        self.data = self.data.reset_index(drop=True)
+        self.feat_cols = features.columns.to_list()
+        self.target_col = ['next_open','next_close']
+
+        self.min_max_scaler = MinMaxScaler()
+        self.data[self.feat_cols] = self.min_max_scaler.fit_transform(self.data[self.feat_cols])
+
+        self.win_size = win_size
+        self.horizon = horizon
+    
+    def __len__(self):
+        return len(self.data) - self.win_size - self.horizon + 1
+
+    def __getitem__(self, i):
+        x = self.data[self.feat_cols].values[i:i+self.win_size]
+        y = self.data[self.target_col].values[i+self.win_size:i+self.win_size + self.horizon]
+
+        return torch.FloatTensor(x), torch.FloatTensor(y)
+    
+    def inverse_scale(self, y):
+        dummy = np.zeros((len(y), len(self.feat_cols)))
+        dummy[:,:len(self.target_col)] = y
+        return self.min_max_scaler.inverse_transform(dummy)[:,:len(self.target_col)]
+
 
 def RSI(n_candles, data):
     delta = data['close'].diff()
@@ -25,17 +56,6 @@ def Stoch_RSI(n_candles, rsi):
     
     return stoch_rsi
 
-# def pos_enc(seq_len, d_model):
-#     pos = np.arange(seq_len)[:, np.newaxis]
-#     i = np.arange(d_model)[np.newaxis, :]
-#     angle_rads = pos / np.power(10000, (2 * (i // 2)) / d_model)
-
-#     pe = np.zeros((seq_len, d_model))
-#     pe[:, 0::2] = np.sin(angle_rads[:, 0::2])
-#     pe[:, 1::2] = np.cos(angle_rads[:, 1::2])
-
-#     return pe
-
 def create_labels(data):
     label = data.shift(-6)
     label.iloc[:-1]
@@ -44,19 +64,6 @@ def create_labels(data):
 
     return label
 
-def create_seq(features, win_size=24, horizon=6, target_col=['next_open','next_close']):
-    labels = create_labels(features)
-    data = features.join(labels)
-    data = data.reset_index(drop=True)
-    feat_cols = data.columns.to_list()
-
-    x, y = [],[]
-    for i in range(len(data) - win_size - horizon +1):
-        x.append(data[feat_cols].values[i:i+win_size])
-        y.append(data[target_col].values[i+win_size:i+win_size+horizon])
-
-    return np.array(x), np.array(y)
-
 
 def preprocess(data):
     data.drop('symbol', axis=1, inplace=True)
@@ -64,19 +71,6 @@ def preprocess(data):
     data['RSI'] = RSI(14, data)
     data['Stoch_RSI'] = Stoch_RSI(14, data['RSI'])
     data['log_returns'] = np.log(data['close'] / data['close'].shift(1))
-
-    min_max_scaler = MinMaxScaler()
-    prices = data[['open','high','low','close','volume','RSI','Stoch_RSI']]
-    prices_min_max = min_max_scaler.fit_transform(prices)
-    data[['open','high','low','close','volume','RSI','Stoch_RSI']] = prices_min_max
-
-    # data['day_of_the_month'] = data.index.day
-    # data['interval'] = data.groupby(data['day_of_the_month']).cumcount() + 1
-
-    # data.insert(0, 'day_of_the_month', data.pop('day_of_the_month'))
-    # data.insert(1, 'interval', data.pop('interval'))
-    # data.insert(2, 'interval_sin', data.pop('interval_sin'))
-    # data.insert(3, 'interval_cos', data.pop('interval_cos'))
 
     data = data.iloc[27:]
 
@@ -87,19 +81,9 @@ def preprocess(data):
     
 
 
-tv = TvDatafeed(user, psw)
 
-btcusdt = tv.get_hist(symbol='BTCUSDT', 
-                      exchange='BINANCE', 
-                      interval=Interval.in_4_hour, 
-                      n_bars=10000,
-                      extended_session=True)
 
-btcusdt = preprocess(btcusdt)
 
-x, y = create_seq(btcusdt)
-
-print(x.shape, y.shape)
 
 
 
