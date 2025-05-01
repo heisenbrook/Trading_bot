@@ -6,15 +6,17 @@ class PosEnc(nn.Module):
     def __init__(self, d_model, win_size):
         super().__init__()
         pos = torch.arange(0, win_size, dtype=torch.float).unsqueeze(1)
-        i = torch.arange(0, d_model, dtype=torch.float).unsqueeze(1)
-        angle_rads = pos / np.power(10000, (2 * (i // 2)) / d_model)
+        div = torch.exp(torch.arange(0, d_model, 2).float() * (-np.log(10000.0) / d_model))
+        angle_rads = pos * div
 
-        self.pe = torch.zeros(win_size, d_model)
-        self.pe[:, 0::2] = torch.sin(angle_rads[:, 0::2])
-        self.pe[:, 1::2] = torch.cos(angle_rads[:, 1::2])
+        pe = torch.zeros(win_size, d_model)
+        pe[:, 0::2] = torch.sin(angle_rads)
+        pe[:, 1::2] = torch.cos(angle_rads)
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)
 
     def forward(self, x):
-        return x + self.pe[:x.size(1),:]
+        return x + self.pe[:, :x.size(1),:]
     
 
 class FinanceTransf(nn.Module):

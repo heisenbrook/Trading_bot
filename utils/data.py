@@ -1,4 +1,4 @@
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset
 import torch
 import pandas as pd
@@ -14,8 +14,8 @@ class BTCDataset(Dataset):
         self.feat_cols = features.columns.to_list()
         self.target_col = ['next_open','next_close']
 
-        self.min_max_scaler = MinMaxScaler()
-        self.data[self.feat_cols] = self.min_max_scaler.fit_transform(self.data[self.feat_cols])
+        self.scaler = StandardScaler()
+        self.data[self.feat_cols] = self.scaler.fit_transform(self.data[self.feat_cols])
 
         self.win_size = win_size
         self.horizon = horizon
@@ -32,7 +32,7 @@ class BTCDataset(Dataset):
     def inverse_scale(self, y):
         dummy = np.zeros((len(y), len(self.feat_cols)))
         dummy[:,:len(self.target_col)] = y
-        return self.min_max_scaler.inverse_transform(dummy)[:,:len(self.target_col)]
+        return self.scaler.inverse_transform(dummy)[:,:len(self.target_col)]
 
 
 def RSI(n_candles, data):
