@@ -1,5 +1,5 @@
 from sklearn.preprocessing import MinMaxScaler
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset
 import torch
 import pandas as pd
 import numpy as np
@@ -58,12 +58,11 @@ def Stoch_RSI(n_candles, rsi):
 
 def create_labels(data):
     label = data.shift(-6)
-    label.iloc[:-1]
+    label.iloc[:-6]
     label.drop(['high','low','volume','RSI','Stoch_RSI','log_returns'], axis=1, inplace=True)
     label = label.rename({'open':'next_open','close':'next_close'}, axis='columns')
 
     return label
-
 
 def preprocess(data):
     data.drop('symbol', axis=1, inplace=True)
