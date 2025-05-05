@@ -1,4 +1,4 @@
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import Dataset
 import torch
 import pandas as pd
@@ -11,10 +11,11 @@ class BTCDataset(Dataset):
 
         self.data = features.join(labels)
         self.data = self.data.reset_index(drop=True)
+        self.data.dropna(axis=0, inplace=True)
         self.feat_cols = features.columns.to_list()
-        self.target_col = ['next_open','next_close']
+        self.target_col = labels.columns.to_list()
 
-        self.scaler = StandardScaler()
+        self.scaler = MinMaxScaler()
         self.data[self.feat_cols] = self.scaler.fit_transform(self.data[self.feat_cols])
 
         self.win_size = win_size
@@ -29,7 +30,7 @@ class BTCDataset(Dataset):
 
         return torch.FloatTensor(x), torch.FloatTensor(y)
     
-    def inverse_scale(self, y):
+    def denorm_pred(self, y):
         dummy = np.zeros((len(y), len(self.feat_cols)))
         dummy[:,:len(self.target_col)] = y
         return self.scaler.inverse_transform(dummy)[:,:len(self.target_col)]
@@ -59,7 +60,7 @@ def Stoch_RSI(n_candles, rsi):
 def create_labels(data):
     label = data.shift(-6)
     label.iloc[:-6]
-    label.drop(['high','low','volume','RSI','Stoch_RSI','log_returns'], axis=1, inplace=True)
+    label.drop(['high','low','volume','RSI','Stoch_RSI'], axis=1, inplace=True)
     label = label.rename({'open':'next_open','close':'next_close'}, axis='columns')
 
     return label
@@ -69,7 +70,9 @@ def preprocess(data):
 
     data['RSI'] = RSI(14, data)
     data['Stoch_RSI'] = Stoch_RSI(14, data['RSI'])
-    data['log_returns'] = np.log(data['close'] / data['close'].shift(1))
+    data['close'] = np.log(data['close'] / data['close'].shift(1))
+    data['open'] = np.log(data['open'] / data['open'].shift(1))
+
 
     data = data.iloc[27:]
 

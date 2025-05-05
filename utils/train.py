@@ -27,18 +27,19 @@ train_data, test_data = random_split(full_data, [0.8 , 0.2])
 batch_size = 64
 train_loader = DataLoader(train_data, batch_size, shuffle=False)
 test_loader = DataLoader(test_data, batch_size, shuffle=False)
-print(len(train_loader))
-print(len(test_loader))
 
 td_bot = FinanceTransf(
     num_features=len(full_data.feat_cols),
     n_targets=len(full_data.target_col),
-    n_layers=2
+    n_layers=4
 )
 td_bot.to(device)
+for p in td_bot.parameters():
+    if p.dim() > 1:
+        nn.init.xavier_uniform_(p)
 
 criterion = nn.MSELoss()
-optimizer = optim.Adam(td_bot.parameters(), lr=0.001)
+optimizer = optim.Adam(td_bot.parameters(), lr=0.0001)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
 
 def train_epoch(model, loader):

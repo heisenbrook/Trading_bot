@@ -29,13 +29,20 @@ class FinanceTransf(nn.Module):
         self.pe = PosEnc(d_model, win_size)
         encoder = nn.TransformerEncoderLayer(
             d_model=d_model,
-            nhead=4,
+            nhead=8,
             dim_feedforward=256,
             dropout=0.1,
-            batch_first=True
+            activation='gelu',
+            batch_first=True,
+            norm_first=True
         )
         self.transformer = nn.TransformerEncoder(encoder, num_layers=n_layers)
-        self.out = nn.Linear(d_model, n_targets)
+        self.out = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, 128),
+            nn.GELU(),
+            nn.Linear(128, n_targets))
+
     
     def forward(self, x):
         x = self.input(x) + np.sqrt(self.d_model)
