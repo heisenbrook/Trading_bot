@@ -22,7 +22,7 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
 full_data = BTCDataset(btcusdt)
 
 
-train_data, test_data = random_split(full_data, [0.8 , 0.2])
+train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1])
 
 batch_size = 64
 train_loader = DataLoader(train_data, batch_size, shuffle=False)
@@ -77,34 +77,37 @@ def eval_epoch(model, loader):
     
     return tot_loss/len(loader)
 
-# main training loop
+# main training function
 
-n_epochs = 50
-best_test_loss = float('inf')
+def train_test(td_bot, train_loader, test_loader, scheduler):
+    n_epochs = 50
+    best_test_loss = float('inf')
 
-train_losses, test_losses = [], []
+    train_losses, test_losses = [], []
 
-for epoch in range(n_epochs):
-    train_loss = train_epoch(td_bot, train_loader)
-    test_loss = train_epoch(td_bot, test_loader)
+    for epoch in range(n_epochs):
+        train_loss = train_epoch(td_bot, train_loader)
+        test_loss = train_epoch(td_bot, test_loader)
     
-    scheduler.step(test_loss)
+        scheduler.step(test_loss)
 
-    train_losses.append(train_loss)
-    test_losses.append(test_loss)
+        train_losses.append(train_loss)
+        test_losses.append(test_loss)
 
-    print(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
+        print(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
 
-    if test_loss < best_test_loss:
-        best_test_loss = test_loss
-        torch.save(td_bot.state_dict(), "td_best_model.pth")
-    elif epoch >10 and test_loss > best_test_loss * 1.1:
-        print('Early stop')
-        break
+        if test_loss < best_test_loss:
+            best_test_loss = test_loss
+            torch.save(td_bot.state_dict(), "td_best_model.pth")
+        elif epoch >10 and test_loss > best_test_loss * 1.1:
+            print('Early stop')
+            break
 
-plt.plot(train_losses, label="Train Loss")
-plt.plot(test_losses, label="Test Loss")
-plt.legend()
-plt.title("Training History")
-plt.show()
+    plt.plot(train_losses, label="Train Loss")
+    plt.plot(test_losses, label="Test Loss")
+    plt.legend()
+    plt.title("Training History")
+    plt.show()
+
+
 
