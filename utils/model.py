@@ -45,7 +45,8 @@ class FinanceTransf(nn.Module):
 
     
     def forward(self, x):
-        x = self.input(x) + np.sqrt(self.d_model)
+        x = self.input(x)
+        x = x * np.sqrt(self.d_model)
         x = self.pe(x)
         x = self.transformer(x)
         x = x[:, -self.horizon:, :]

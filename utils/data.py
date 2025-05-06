@@ -33,7 +33,7 @@ class BTCDataset(Dataset):
     def denorm_pred(self, y):
         dummy = np.zeros((len(y), len(self.feat_cols)))
         dummy[:,:len(self.target_col)] = y
-        dummy[:,:len(self.target_col)] = denorm_log(self.data, dummy[:,:len(self.target_col)])
+        dummy[:,:len(self.target_col)] = denorm_log(self.data['open','close'], dummy[:,:len(self.target_col)])
 
         return self.scaler.inverse_transform(dummy)[:,:len(self.target_col)]
 
@@ -82,7 +82,7 @@ def preprocess(data):
 
 def denorm_log(data, pred):
     cum_returns = np.cumsum(pred, axis=1)
-    prices = data['close'].shift(-1) * np.exp(cum_returns)
+    prices = data['close'].iloc(-1) * np.exp(cum_returns)
 
     return prices
 
