@@ -1,4 +1,4 @@
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import RobustScaler
 from torch.utils.data import Dataset
 import torch
 import pandas as pd
@@ -11,12 +11,25 @@ class BTCDataset(Dataset):
 
         self.data = features.join(labels)
         self.data = self.data.reset_index(drop=True)
-        self.data.dropna(axis=0, inplace=True)
         self.feat_cols = features.columns.to_list()
         self.target_col = labels.columns.to_list()
 
-        self.scaler = MinMaxScaler()
-        self.data[self.feat_cols] = self.scaler.fit_transform(self.data[self.feat_cols])
+        self.last_close = self.data['close'].iloc[-1]
+        self.last_open = self.data['open'].iloc[-1]
+
+        self.data['next_close'] = np.log(self.data['next_close'] / self.data['next_close'].shift(1))
+        self.data['next_open'] = np.log(self.data['next_open'] / self.data['next_open'].shift(1))
+
+        self.data['close'] = np.log(self.data['close'] / self.data['close'].shift(1))
+        self.data['open'] = np.log(self.data['open'] / self.data['open'].shift(1))
+
+        self.data.dropna(axis=0, inplace=True)
+
+        self.scaler_feat = RobustScaler()
+        self.scaler_targ = RobustScaler()
+        self.data[self.feat_cols] = self.scaler_feat.fit_transform(self.data[self.feat_cols])
+        self.data[self.target_col] = self.scaler_targ.fit_transform(self.data[self.target_col])
+
 
         self.win_size = win_size
         self.horizon = horizon
@@ -31,11 +44,23 @@ class BTCDataset(Dataset):
         return torch.FloatTensor(x), torch.FloatTensor(y)
     
     def denorm_pred(self, y):
-        dummy = np.zeros((len(y), len(self.feat_cols)))
-        dummy[:,:len(self.target_col)] = y
-        dummy[:,:len(self.target_col)] = denorm_log(self.data['open','close'], dummy[:,:len(self.target_col)])
+        if isinstance(y, torch.Tensor):
+            y = y.detach().cpu().numpy()
+        dummy = np.zeros((y.shape[0], len(self.target_col)))
+        dummy = y
+        denorm = self.scaler_targ.inverse_transform(dummy)
 
-        return self.scaler.inverse_transform(dummy)[:,:len(self.target_col)]
+        for col in range(denorm.shape[1]):
+            if col == 0:
+                cum_returns = np.cumsum(denorm[:,col])
+                abs_prices = self.last_open * np.exp(cum_returns)
+                denorm[:,col] = abs_prices
+            else:
+                cum_returns = np.cumsum(denorm[:,col])
+                abs_prices = self.last_close * np.exp(cum_returns)
+                denorm[:,col] = abs_prices
+
+        return denorm
 
 
 def RSI(n_candles, data):
@@ -72,19 +97,10 @@ def preprocess(data):
 
     data['RSI'] = RSI(14, data)
     data['Stoch_RSI'] = Stoch_RSI(14, data['RSI'])
-    data['close'] = np.log(data['close'] / data['close'].shift(1))
-    data['open'] = np.log(data['open'] / data['open'].shift(1))
-
 
     data = data.iloc[27:]
 
     return data
-
-def denorm_log(data, pred):
-    cum_returns = np.cumsum(pred, axis=1)
-    prices = data['close'].iloc(-1) * np.exp(cum_returns)
-
-    return prices
 
 
 

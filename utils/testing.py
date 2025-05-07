@@ -12,23 +12,23 @@ def metrics(targets, preds):
     return mae_open, mae_close
 
 def plot_one(targets, preds):
-    sample_idx = 0
     plt.figure(figsize=(12, 6))
 
     plt.subplot(1, 2, 1)
-    plt.plot(targets[sample_idx, :, 0], label='True Open')
-    plt.plot(preds[sample_idx, :, 0], label='Pred Open')
+    plt.plot(targets[:, 0], label='True Open')
+    plt.plot(preds[:, 0], label='Pred Open')
     plt.title('Open Prices')
     plt.legend()
 
     plt.subplot(1, 2, 2)
-    plt.plot(targets[sample_idx, :, 1], label='True Close')
-    plt.plot(preds[sample_idx, :, 1], label='Pred Close')
+    plt.plot(targets[:, 1], label='True Close')
+    plt.plot(preds[:, 1], label='Pred Close')
     plt.title('Close Prices')
     plt.legend()
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig('Pred_vs_real.png')
+    plt.close()
 
 
 def testing(device, model, loader, full_data):
@@ -43,11 +43,14 @@ def testing(device, model, loader, full_data):
             all_preds.append(preds.cpu().numpy())
             all_targets.append(label.cpu().numpy())
 
-    all_preds = np.concatenate(all_preds)
-    all_targets = np.concatenate(all_targets)
+    all_preds = np.concatenate(all_preds, axis=0)
+    all_targets = np.concatenate(all_targets, axis=0)
+    
+    all_preds = all_preds.reshape(-1,2)
+    all_targets = all_targets.reshape(-1,2)
 
-    preds_real = full_data.denorm_pred(all_preds.reshape(-1,2))
-    targets_real = full_data.denorm_pred(all_targets.reshape(-1,2))
+    preds_real = full_data.denorm_pred(all_preds)
+    targets_real = full_data.denorm_pred(all_targets)
 
     plot_one(targets_real, preds_real)
 

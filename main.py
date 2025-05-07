@@ -22,7 +22,6 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
 
 full_data = BTCDataset(btcusdt)
 
-
 train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1])
 
 batch_size = 64
@@ -44,7 +43,7 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(td_bot.parameters(), lr=0.0001)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
 
-train_test(device, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
+train_test(device, 500, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
 
 td_bot.load_state_dict(torch.load('td_best_model.pth'))
 
