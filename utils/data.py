@@ -1,4 +1,4 @@
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import StandardScaler, PowerTransformer
 from torch.utils.data import Dataset
 import torch
 import pandas as pd
@@ -25,8 +25,8 @@ class BTCDataset(Dataset):
 
         self.data.dropna(axis=0, inplace=True)
 
-        self.scaler_feat = RobustScaler()
-        self.scaler_targ = RobustScaler()
+        self.scaler_feat = StandardScaler()
+        self.scaler_targ = StandardScaler()
         self.data[self.feat_cols] = self.scaler_feat.fit_transform(self.data[self.feat_cols])
         self.data[self.target_col] = self.scaler_targ.fit_transform(self.data[self.target_col])
 

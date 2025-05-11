@@ -41,6 +41,7 @@ for p in td_bot.parameters():
 
 criterion = nn.MSELoss()
 optimizer = optim.Adam(td_bot.parameters(), lr=0.0001)
+nn.utils.clip_grad_norm_(td_bot.parameters(), max_norm=1.0)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
 
 train_test(device, 500, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
