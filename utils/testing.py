@@ -15,14 +15,14 @@ def plot_one(targets, preds):
     plt.figure(figsize=(12, 6))
 
     plt.subplot(1, 2, 1)
-    plt.plot(targets[:, 0], label='True Open')
-    plt.plot(preds[:, 0], label='Pred Open')
+    plt.plot(targets[1000:2000, 0], label='True Open')
+    plt.plot(preds[1000:2000, 0], label='Pred Open')
     plt.title('Open Prices')
     plt.legend()
 
     plt.subplot(1, 2, 2)
-    plt.plot(targets[:, 1], label='True Close')
-    plt.plot(preds[:, 1], label='Pred Close')
+    plt.plot(targets[1000:2000, 1], label='True Close')
+    plt.plot(preds[1000:2000, 1], label='Pred Close')
     plt.title('Close Prices')
     plt.legend()
 

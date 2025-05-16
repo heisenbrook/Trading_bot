@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import torch
+from datetime import datetime as dt
 from tqdm import tqdm
+
+scaler = torch.amp.GradScaler()
 
 def train_epoch(device, epoch, model, optimizer, criterion, loader):
     model.train()
@@ -13,10 +16,12 @@ def train_epoch(device, epoch, model, optimizer, criterion, loader):
         data, label = data.to(device), label.to(device)
 
         optimizer.zero_grad()
-        out = model(data)
-        loss = criterion(out, label)
-        loss.backward()
-        optimizer.step()
+        with torch.autocast(device_type='cuda'):
+            out = model(data)
+            loss = criterion(out, label)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         tot_loss += loss.item()
     
@@ -27,7 +32,7 @@ def eval_epoch(device, epoch, model, criterion, loader):
     tot_loss = 0
     with torch.no_grad():
         for data, label in tqdm(loader,
-                           desc=f'Epoch {epoch +1} | Batch Train',
+                           desc=f'Epoch {epoch +1} | Batch Test',
                            total= len(loader),
                            leave=False,
                            ncols=80):
@@ -53,13 +58,15 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
         train_losses.append(train_loss)
         test_losses.append(test_loss)
 
-        if (epoch + 1) % 50 == 0 or (epoch + 1) == 1:
-            print(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
+        if (epoch + 1) % (n_epochs//10) == 0 or (epoch + 1) == 1:
+            x = dt.now()
+            print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
 
         if test_loss < best_test_loss:
             best_test_loss = test_loss
             torch.save(model.state_dict(), 'td_best_model.pth')
-        elif epoch >10 and test_loss > best_test_loss * 1.1:
+        elif epoch >10 and test_loss > best_test_loss * 1.05:
+            print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
             break
 

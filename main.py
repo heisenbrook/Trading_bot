@@ -32,7 +32,7 @@ eval_loader = DataLoader(eval_data, batch_size, shuffle=False)
 td_bot = FinanceTransf(
     num_features=len(full_data.feat_cols),
     n_targets=len(full_data.target_col),
-    n_layers=4
+    n_layers=2
 )
 td_bot.to(device)
 for p in td_bot.parameters():
