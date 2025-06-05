@@ -29,12 +29,11 @@ class FinanceTransf(nn.Module):
         self.pe = PosEnc(d_model, win_size)
         encoder = nn.TransformerEncoderLayer(
             d_model=d_model,
-            nhead=4,
             dim_feedforward=256,
+            nhead=4,
             dropout=0.1,
             activation='gelu',
             batch_first=True,
-            norm_first=True,
             layer_norm_eps=1e-6
         )
         self.transformer = nn.TransformerEncoder(encoder, num_layers=n_layers)
@@ -47,7 +46,7 @@ class FinanceTransf(nn.Module):
     
     def forward(self, x):
         x = self.input(x)
-        x = x * np.sqrt(self.d_model)
+        #x = x * np.sqrt(self.d_model)
         x = self.pe(x)
         x = self.transformer(x)
         x = x[:, -self.horizon:, :]

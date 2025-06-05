@@ -1,4 +1,6 @@
 import torch
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import mean_absolute_error
@@ -15,14 +17,14 @@ def plot_one(targets, preds):
     plt.figure(figsize=(12, 6))
 
     plt.subplot(1, 2, 1)
-    plt.plot(targets[1000:2000, 0], label='True Open')
-    plt.plot(preds[1000:2000, 0], label='Pred Open')
+    plt.plot(targets[1000:1060, 0], label='True Open')
+    plt.plot(targets[1000:1060, 1], label='True Close')
     plt.title('Open Prices')
     plt.legend()
 
     plt.subplot(1, 2, 2)
-    plt.plot(targets[1000:2000, 1], label='True Close')
-    plt.plot(preds[1000:2000, 1], label='Pred Close')
+    plt.plot(preds[1000:1060, 0], label='Pred Open')
+    plt.plot(preds[1000:1060, 1], label='Pred Close')
     plt.title('Close Prices')
     plt.legend()
 
@@ -30,8 +32,30 @@ def plot_one(targets, preds):
     plt.savefig('Pred_vs_real.png')
     plt.close()
 
+def plot_bar(targets, preds, btcusdt):
 
-def testing(device, model, loader, full_data):
+    fig = make_subplots(rows=1, cols=3)
+
+    fig.add_trace(go.Candlestick(x = btcusdt.index,
+                                         open= btcusdt['open'],
+                                         close= btcusdt['close']),
+                                         row=1, col=1)
+
+    fig.add_trace(go.Candlestick(x = btcusdt.index,
+                                         open= targets[:,0],
+                                         close= targets[:,1]),
+                                         row=1, col=2)
+
+    fig.add_trace(go.Candlestick(x = btcusdt.index,
+                                         open= preds[:,0],
+                                         close= preds[:,1]),
+                                         row=1, col=3)
+
+    fig.write_image('Pred_vs_real_candles.png')
+   
+
+
+def testing(device, model, loader, full_data, btcusdt):
     model.eval()
     all_preds, all_targets = [], []
 
@@ -53,6 +77,7 @@ def testing(device, model, loader, full_data):
     targets_real = full_data.denorm_pred(all_targets)
 
     plot_one(targets_real, preds_real)
+    plot_bar(targets_real, preds_real, btcusdt)
 
     m_open, m_close = metrics(targets_real, preds_real)
 

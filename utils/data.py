@@ -1,4 +1,5 @@
 from sklearn.preprocessing import RobustScaler, FunctionTransformer, PowerTransformer, StandardScaler, QuantileTransformer
+from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from torch.utils.data import Dataset
 import torch
@@ -12,29 +13,35 @@ class BTCDataset(Dataset):
 
         self.data = features.join(labels)
         self.data = self.data.reset_index(drop=True)
-        self.feat_cols = ['high','low','open','close','next_open','next_close']
+        self.cols = ['high','low','open','close','RSI','next_open','next_close']
+        self.feat_cols = ['high','low','open','close','RSI','next_open','next_close', 'volume']
         self.target_col = labels.columns.to_list()
         self.win_size = win_size
         self.horizon = horizon
 
-        self.last_close = self.data['close'].iloc[-1]
-        self.last_open = self.data['open'].iloc[-1]
+        # self.last_close = self.data['close'].iloc[-1]
+        # self.last_open = self.data['open'].iloc[-1]
 
-        self.pipeline = Pipeline([
-            ('log_returns', FunctionTransformer(calculate_log_returns)),
-            ('robust', RobustScaler(quantile_range=(5, 95))),
-            ('power', PowerTransformer())
-        ])
+        # self.pipeline = Pipeline([
+        #     ('log_returns', FunctionTransformer(calculate_log_returns)),
+        #     ('robust', RobustScaler()),
+        #     ('power', PowerTransformer(method='yeo-johnson', standardize=True))
+        # ])
+
+        self.preprocessor = ColumnTransformer(
+            transformers=[
+                ('cols', Pipeline([
+                         ('log_returns', FunctionTransformer(func= np.log, inverse_func=np.exp, check_inverse=False)),
+                         ('robust', RobustScaler()),
+                         ('power', PowerTransformer())
+                ]), self.cols),
+                ('volume', RobustScaler(), ['volume'])
+            ],
+            remainder='passthrough'
+        )
 
 
-        self.vol_scaler = Pipeline([
-            ('robust', RobustScaler(quantile_range=(5, 95))),
-            ('power', PowerTransformer())
-        ])
-
-        self.data[['volume']] = self.vol_scaler.fit_transform(self.data[['volume']])
-
-        self.data[self.feat_cols] = self.pipeline.fit_transform(self.data[self.feat_cols])
+        self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
 
         self.data.replace([np.inf, -np.inf], np.nan, inplace=True)
         self.data.dropna(axis=0, inplace=True)
@@ -55,21 +62,30 @@ class BTCDataset(Dataset):
         if isinstance(y, torch.Tensor):
             y = y.detach().cpu().numpy()
         dummy = np.zeros((y.shape[0], len(self.feat_cols)))
-        dummy[:, :len(self.target_col)] = y
-        denorm = self.pipeline.named_steps['power'].inverse_transform(dummy)
-        denorm = self.pipeline.named_steps['robust'].inverse_transform(denorm)
-        denorm = np.nan_to_num(denorm)
-        
-        col=0
+        dummy[:, (-len(self.target_col)-1):-1] = y
+        start = 0
+        for name, transf, feat in self.preprocessor.transformers_:
+            if name == 'remainder':
+                continue
+            end = start + len(feat)
+            y_slice = dummy[:, start:end]
+            if isinstance(transf, Pipeline):
+                for step_name, step in reversed(transf.steps):
+                    if hasattr(step, 'inverse_transform'):
+                        y_slice = step.inverse_transform(y_slice)
 
-        for i in range((len(self.feat_cols)-1), 0, -1):
-            col += 1 
-            if col == 1:
-                denorm[:,i] = invert_log(denorm[:,i], self.last_close)
-            elif col == 2:
-                denorm[:,i] = invert_log(denorm[:,i], self.last_open)
+            elif hasattr(transf, 'inverse_transform'):
+                y_slice = transf.inverse_transform(y_slice)
+            
+            dummy[:, start:end] = y_slice
 
-        return denorm[:, :len(self.target_col)]
+                     
+        # denorm = self.pipeline.named_steps['power'].inverse_transform(dummy)
+        # denorm = self.pipeline.named_steps['robust'].inverse_transform(denorm) 
+
+        # assert np.allclose(self.last_close, denorm[-1, -1]), 'data not denormalized'
+
+        return dummy[:, (-len(self.target_col)-1):-1]
 
 
 def RSI(n_candles, data):
@@ -85,14 +101,6 @@ def RSI(n_candles, data):
     
     return rsi
 
-# def Stoch_RSI(n_candles, rsi):
-#     min_rsi = rsi.rolling(n_candles).min()
-#     max_rsi = rsi.rolling(n_candles).max()
-    
-#     stoch_rsi = ((rsi - min_rsi) / (max_rsi - min_rsi)) * 100
-    
-#     return stoch_rsi
-
 def create_labels(data):
     label = data.shift(-6)
     label.iloc[:-6]
@@ -105,18 +113,27 @@ def preprocess(data):
     data.drop('symbol', axis=1, inplace=True)
 
     data['RSI'] = RSI(14, data)
-    # data['Stoch_RSI'] = Stoch_RSI(14, data['RSI'])
 
     data = data.iloc[15:]
 
+    volume = data.pop('volume')
+    data.insert(len(data.columns), 'volume', volume)
+
     return data
 
-def calculate_log_returns(data):
-    return np.log((data)/ (data.shift(1)))
+# def calculate_log_returns(data):
+#     return np.log(data)
 
-def invert_log(data, last_price):
-    cum_ret = np.cumsum(data)
-    return last_price * np.exp(cum_ret)
+# def invert_log(data, last_open, last_close, i):
+
+#     if i == 0:
+#         cum_ret = np.cumsum(data)
+#         data = last_close * np.exp(cum_ret)
+#     elif i == 1:
+#         cum_ret = np.cumsum(data)
+#         data = last_open * np.exp(cum_ret)
+
+#     return data
 
 
 
