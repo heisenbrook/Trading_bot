@@ -11,13 +11,17 @@ class BTCDataset(Dataset):
         features = preprocess(features)
         labels = create_labels(features)
 
-        self.data = features.join(labels)
-        self.data = self.data.reset_index(drop=True)
-        self.cols = ['high','low','open','close','RSI','next_open','next_close']
-        self.feat_cols = ['high','low','open','close','RSI','next_open','next_close', 'volume']
-        self.target_col = labels.columns.to_list()
         self.win_size = win_size
         self.horizon = horizon
+
+        self.data = features.join(labels)
+        self.time = self.data.reset_index(names='timestamp')
+        self.last_time = self.data[self.time]
+
+        self.cols = ['high','low','open','close','RSI','next_high','next_low','next_open','next_close']
+        self.feat_cols = ['high','low','open','close','RSI','next_high','next_low','next_open','next_close','volume']
+        self.target_col = labels.columns.to_list()
+
 
         # self.last_close = self.data['close'].iloc[-1]
         # self.last_open = self.data['open'].iloc[-1]
@@ -40,14 +44,10 @@ class BTCDataset(Dataset):
             remainder='passthrough'
         )
 
-
         self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
 
         self.data.replace([np.inf, -np.inf], np.nan, inplace=True)
         self.data.dropna(axis=0, inplace=True)
-
-
-
 
     def __len__(self):
         return len(self.data) - self.win_size - self.horizon + 1
@@ -70,7 +70,7 @@ class BTCDataset(Dataset):
             end = start + len(feat)
             y_slice = dummy[:, start:end]
             if isinstance(transf, Pipeline):
-                for step_name, step in reversed(transf.steps):
+                for _, step in reversed(transf.steps):
                     if hasattr(step, 'inverse_transform'):
                         y_slice = step.inverse_transform(y_slice)
 
@@ -79,13 +79,11 @@ class BTCDataset(Dataset):
             
             dummy[:, start:end] = y_slice
 
-                     
-        # denorm = self.pipeline.named_steps['power'].inverse_transform(dummy)
-        # denorm = self.pipeline.named_steps['robust'].inverse_transform(denorm) 
-
         # assert np.allclose(self.last_close, denorm[-1, -1]), 'data not denormalized'
+        df = pd.DataFrame(dummy, columns=self.feat_cols)
+        print(df[self.target_col].head())
 
-        return dummy[:, (-len(self.target_col)-1):-1]
+        return df[self.target_col]
 
 
 def RSI(n_candles, data):
@@ -104,8 +102,8 @@ def RSI(n_candles, data):
 def create_labels(data):
     label = data.shift(-6)
     label.iloc[:-6]
-    label.drop(['high','low','volume','RSI'], axis=1, inplace=True)
-    label = label.rename({'open':'next_open','close':'next_close'}, axis='columns')
+    label.drop(['volume','RSI'], axis=1, inplace=True)
+    label = label.rename({'high':'next_high','low':'next_low','open':'next_open','close':'next_close'}, axis='columns')
 
     return label
 

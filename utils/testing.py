@@ -1,30 +1,31 @@
 import torch
+import pandas as pd
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import mean_absolute_error
-from torch.utils.data import DataLoader
 
 def metrics(targets, preds):
 
-    mae_open = mean_absolute_error(targets[:,0], preds[:,0])
-    mae_close = mean_absolute_error(targets[:,1], preds[:,1])
+    mae_open = mean_absolute_error(targets['next_open'], preds['next_open'])
+    mae_close = mean_absolute_error(targets['next_close'], preds['next_close'])
 
     return mae_open, mae_close
 
 def plot_one(targets, preds):
+
     plt.figure(figsize=(12, 6))
 
     plt.subplot(1, 2, 1)
-    plt.plot(targets[1000:1060, 0], label='True Open')
-    plt.plot(targets[1000:1060, 1], label='True Close')
+    plt.plot(targets['next_open'], label='True Open')
+    plt.plot(preds['next_open'], label='Pred Open')
     plt.title('Open Prices')
     plt.legend()
 
     plt.subplot(1, 2, 2)
-    plt.plot(preds[1000:1060, 0], label='Pred Open')
-    plt.plot(preds[1000:1060, 1], label='Pred Close')
+    plt.plot(targets['next_close'], label='True Close')
+    plt.plot(preds['next_close'], label='Pred Close')
     plt.title('Close Prices')
     plt.legend()
 
@@ -34,22 +35,30 @@ def plot_one(targets, preds):
 
 def plot_bar(targets, preds, btcusdt):
 
-    fig = make_subplots(rows=1, cols=3)
+    dates = pd.to_datetime(btcusdt.index, format='%Y-%m-%d %H:%M')
 
-    fig.add_trace(go.Candlestick(x = btcusdt.index,
-                                         open= btcusdt['open'],
-                                         close= btcusdt['close']),
+    fig = make_subplots(rows=1, cols=2)
+
+    # fig.add_trace(go.Candlestick(x = dates,
+    #                                      high= btcusdt['high'],
+    #                                      low= btcusdt['low'],
+    #                                      open= btcusdt['open'],
+    #                                      close= btcusdt['close']),
+    #                                      row=1, col=1)
+
+    fig.add_trace(go.Candlestick(x = dates,
+                                         high= targets['next_high'],
+                                         low= targets['next_low'],
+                                         open= targets['next_open'],
+                                         close= targets['next_close']),
                                          row=1, col=1)
 
-    fig.add_trace(go.Candlestick(x = btcusdt.index,
-                                         open= targets[:,0],
-                                         close= targets[:,1]),
+    fig.add_trace(go.Candlestick(x = dates,
+                                         high= preds['next_high'],
+                                         low= preds['next_low'],
+                                         open= preds['next_open'],
+                                         close= preds['next_close']),
                                          row=1, col=2)
-
-    fig.add_trace(go.Candlestick(x = btcusdt.index,
-                                         open= preds[:,0],
-                                         close= preds[:,1]),
-                                         row=1, col=3)
 
     fig.write_image('Pred_vs_real_candles.png')
    
@@ -62,16 +71,15 @@ def testing(device, model, loader, full_data, btcusdt):
     with torch.no_grad():
         for data, label in loader:
             data = data.to(device)
-            preds = model(data)
-
+            preds = model(data) 
             all_preds.append(preds.cpu().numpy())
             all_targets.append(label.cpu().numpy())
 
     all_preds = np.concatenate(all_preds, axis=0)
     all_targets = np.concatenate(all_targets, axis=0)
     
-    all_preds = all_preds.reshape(-1,2)
-    all_targets = all_targets.reshape(-1,2)
+    all_preds = all_preds.reshape(-1,4)
+    all_targets = all_targets.reshape(-1,4)
 
     preds_real = full_data.denorm_pred(all_preds)
     targets_real = full_data.denorm_pred(all_targets)
