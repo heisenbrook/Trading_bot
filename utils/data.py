@@ -15,27 +15,17 @@ class BTCDataset(Dataset):
         self.horizon = horizon
 
         self.data = features.join(labels)
-        self.time = self.data.reset_index(names='timestamp')
-        self.last_time = self.data[self.time]
 
         self.cols = ['high','low','open','close','RSI','next_high','next_low','next_open','next_close']
         self.feat_cols = ['high','low','open','close','RSI','next_high','next_low','next_open','next_close','volume']
         self.target_col = labels.columns.to_list()
-
-
-        # self.last_close = self.data['close'].iloc[-1]
-        # self.last_open = self.data['open'].iloc[-1]
-
-        # self.pipeline = Pipeline([
-        #     ('log_returns', FunctionTransformer(calculate_log_returns)),
-        #     ('robust', RobustScaler()),
-        #     ('power', PowerTransformer(method='yeo-johnson', standardize=True))
-        # ])
+        self.timestamps = self.data.index.values
+        self.time_index = np.arange(len(self.data))
 
         self.preprocessor = ColumnTransformer(
             transformers=[
                 ('cols', Pipeline([
-                         ('log_returns', FunctionTransformer(func= np.log, inverse_func=np.exp, check_inverse=False)),
+                         #('log_returns', FunctionTransformer(func= np.log , inverse_func= np.exp , check_inverse=False)),
                          ('robust', RobustScaler()),
                          ('power', PowerTransformer())
                 ]), self.cols),
@@ -46,7 +36,7 @@ class BTCDataset(Dataset):
 
         self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
 
-        self.data.replace([np.inf, -np.inf], np.nan, inplace=True)
+        #self.data.replace([np.inf, -np.inf], np.nan, inplace=True)
         self.data.dropna(axis=0, inplace=True)
 
     def __len__(self):
@@ -55,12 +45,14 @@ class BTCDataset(Dataset):
     def __getitem__(self, i):
         x = self.data[self.feat_cols].values[i:i+self.win_size]
         y = self.data[self.target_col].values[i+self.win_size:i+self.win_size + self.horizon]
+        last_time_index = self.time_index[i+self.win_size:i+self.win_size+self.horizon]
 
-        return torch.FloatTensor(x), torch.FloatTensor(y)
+        return torch.FloatTensor(x), torch.FloatTensor(y), last_time_index
     
-    def denorm_pred(self, y):
+    def denorm_pred(self, y, last_time_index):
         if isinstance(y, torch.Tensor):
             y = y.detach().cpu().numpy()
+
         dummy = np.zeros((y.shape[0], len(self.feat_cols)))
         dummy[:, (-len(self.target_col)-1):-1] = y
         start = 0
@@ -79,9 +71,7 @@ class BTCDataset(Dataset):
             
             dummy[:, start:end] = y_slice
 
-        # assert np.allclose(self.last_close, denorm[-1, -1]), 'data not denormalized'
-        df = pd.DataFrame(dummy, columns=self.feat_cols)
-        print(df[self.target_col].head())
+        df = pd.DataFrame(dummy, columns=self.feat_cols, index=self.timestamps[last_time_index])
 
         return df[self.target_col]
 

@@ -8,7 +8,7 @@ scaler = torch.amp.GradScaler()
 def train_epoch(device, epoch, n_epochs, model, optimizer, criterion, loader):
     model.train()
     tot_loss = 0
-    for data, label in tqdm(loader,
+    for data, label, _ in tqdm(loader,
                            desc=f'Epoch {epoch +1}/{n_epochs} | Batch Train',
                            total= len(loader),
                            leave=False,
@@ -31,7 +31,7 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
     model.eval()
     tot_loss = 0
     with torch.no_grad():
-        for data, label in tqdm(loader,
+        for data, label, _ in tqdm(loader,
                            desc=f'Epoch {epoch +1}/{n_epochs} | Batch Test',
                            total= len(loader),
                            leave=False,
@@ -64,7 +64,7 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
 
         if test_loss < best_test_loss:
             best_test_loss = test_loss
-            torch.save(model.state_dict(), 'td_best_model.pth')
+            torch.save(model.state_dict(), 'data/td_best_model.pth')
         elif epoch >10 and test_loss > best_test_loss * 1.2:
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
@@ -74,7 +74,7 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
     plt.plot(test_losses, label='Test Loss')
     plt.legend()
     plt.title('Training History')
-    plt.savefig('Training_loss.png')
+    plt.savefig('data/Training_loss.png')
     plt.close()
 
 
