@@ -45,9 +45,9 @@ optimizer = optim.Adam(td_bot.parameters(), lr=0.001, weight_decay=1e-5)
 nn.utils.clip_grad_norm_(td_bot.parameters(), max_norm=1.0)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
 
-# train_test(device, 50, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
+train_test(device, 50, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
 
-td_bot.load_state_dict(torch.load(os.path.join(data_folder,'td_best_model.pth'), weights_only=True))
+td_bot = torch.jit.load(os.path.join(data_folder,'td_best_model.pt'))
 
 testing(device, td_bot, eval_loader, full_data)
 

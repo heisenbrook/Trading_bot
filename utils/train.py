@@ -1,4 +1,5 @@
-import matplotlib.pyplot as plt
+import plotly.express as px
+import pandas as pd
 import torch
 import os
 from utils.keys import data_folder
@@ -6,6 +7,13 @@ from datetime import datetime as dt
 from tqdm import tqdm
 
 scaler = torch.amp.GradScaler()
+
+def plot_loss(train_losses, test_losses):
+    df = pd.DataFrame(dict(train_loss=train_losses, test_loss=test_losses))
+    fig = px.line(df, labels={'index': 'Epochs', 'value': 'Loss'},
+                  title='Training and Test Loss Over Epochs')
+    fig.update_layout(xaxis_title='Epochs', yaxis_title='Loss') 
+    fig.write_image(os.path.join(data_folder, 'Training_loss.png'))
 
 def train_epoch(device, epoch, n_epochs, model, optimizer, criterion, loader):
     model.train()
@@ -66,18 +74,16 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
 
         if test_loss < best_test_loss:
             best_test_loss = test_loss
-            torch.save(model.state_dict(),  os.path.join(data_folder,'td_best_model.pth'))
-        elif epoch >10 and test_loss > best_test_loss * 1.3:
+            saved_model = torch.jit.script(model)
+            saved_model.save(os.path.join(data_folder,'td_best_model.pt'))
+
+        elif epoch >10 and test_loss > best_test_loss * 1.4:
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
             break
+    
+    plot_loss(train_losses, test_losses)
 
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(test_losses, label='Test Loss')
-    plt.legend()
-    plt.title('Training History')
-    plt.savefig(os.path.join(data_folder,'Training_loss.png'))
-    plt.close()
 
 
 
