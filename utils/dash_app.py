@@ -1,4 +1,4 @@
-import dash
+from utils.keys import data_folder
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
@@ -10,16 +10,16 @@ from plotly.subplots import make_subplots
 app = Dash(__name__)
 app.title = "Prediction vs real candles"
 
-
-data_folder = os.path.join(os.path.dirname(__file__), '../data')
 csv_files = [f for f in os.listdir(data_folder) if f.endswith('.csv')]
+csv_names = [os.path.splitext(f)[0] for f in csv_files]
+csv = dict(zip(csv_names, csv_files))
 
 
 app.layout = html.Div([
-    html.H4("Candlestick Chart Viewer", style={'textAlign': 'center'}),
+    html.H1('BTCUSDT Candlestick Chart 4h', style={'textAlign': 'center'}),
     dcc.Checklist(
         id='toggle-rangeslider',
-        options=[{'label': file, 'value': file} for file in csv_files]
+        options=[{'label': filename, 'value': file} for filename, file in csv.items()],
     ),
     dcc.Graph(id='candlestick-graph')
 ])
@@ -28,15 +28,14 @@ app.layout = html.Div([
     Output('candlestick-graph', 'figure'),
     Input('toggle-rangeslider', 'value')
 )
-def update_graph(csv_files):
-    fig = make_subplots(rows=1, cols=2,
-                        vertical_spacing=0.1,
-                        subplot_titles=[file for file in csv_files],
-                        specs=[[{'type': 'candlestick'}, {'type': 'candlestick'}]])
+def update_graph(csv):
+    fig = make_subplots(rows=1, cols=2)
+    
     col = 1
 
-    for file in csv_files:
+    for file in csv:
         file_path = os.path.join(data_folder, file)
+        filename = os.path.splitext(file)[0]
         df = pd.read_csv(file_path, index_col=0, parse_dates=True)
 
 
@@ -46,12 +45,22 @@ def update_graph(csv_files):
                                          open= df['next_open'],
                                          close= df['next_close']),
                                          row=1, col=col)
+        
+        fig.add_annotation(text=filename,
+                           row=1, col=col,               
+                           xref='x domain', yref='y domain',
+                           x=0.5, y=1.2, showarrow=False,
+                           font=dict(size=16, color='black'))
+        
+        fig.update_xaxes(rangeslider= {'visible':True}, row=1, col=col)
+                          
         col += 1
 
-        fig.update_layout(xaxis_rangeslider_visible=False in csv_files,
-                          xaxis1=dict(rangeslider=dict(visible=False)),
-                          xaxis2=dict(rangeslider=dict(visible=False)),
-                          height=600, width=1200)
+    fig.update_layout(
+        height=600,
+        width=1200,
+        showlegend=False
+    )
     
 
     return fig

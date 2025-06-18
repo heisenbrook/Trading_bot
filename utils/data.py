@@ -25,7 +25,7 @@ class BTCDataset(Dataset):
         self.preprocessor = ColumnTransformer(
             transformers=[
                 ('cols', Pipeline([
-                         #('log_returns', FunctionTransformer(func= np.log , inverse_func= np.exp , check_inverse=False)),
+                         ('log_returns', FunctionTransformer(func= lambda x: (np.log(x) + 1e-7) , inverse_func= lambda x: (np.exp(x) + 1e-7) , check_inverse=False)),
                          ('robust', RobustScaler()),
                          ('power', PowerTransformer())
                 ]), self.cols),
@@ -36,8 +36,7 @@ class BTCDataset(Dataset):
 
         self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
 
-        #self.data.replace([np.inf, -np.inf], np.nan, inplace=True)
-        self.data.dropna(axis=0, inplace=True)
+        self.data.ffill(inplace=True)
 
     def __len__(self):
         return len(self.data) - self.win_size - self.horizon + 1
@@ -109,19 +108,6 @@ def preprocess(data):
 
     return data
 
-# def calculate_log_returns(data):
-#     return np.log(data)
-
-# def invert_log(data, last_open, last_close, i):
-
-#     if i == 0:
-#         cum_ret = np.cumsum(data)
-#         data = last_close * np.exp(cum_ret)
-#     elif i == 1:
-#         cum_ret = np.cumsum(data)
-#         data = last_open * np.exp(cum_ret)
-
-#     return data
 
 
 

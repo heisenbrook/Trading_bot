@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import torch
+import os
+from utils.keys import data_folder
 from datetime import datetime as dt
 from tqdm import tqdm
 
@@ -64,8 +66,8 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
 
         if test_loss < best_test_loss:
             best_test_loss = test_loss
-            torch.save(model.state_dict(), 'data/td_best_model.pth')
-        elif epoch >10 and test_loss > best_test_loss * 1.2:
+            torch.save(model.state_dict(),  os.path.join(data_folder,'td_best_model.pth'))
+        elif epoch >10 and test_loss > best_test_loss * 1.3:
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
             break
@@ -74,7 +76,7 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
     plt.plot(test_losses, label='Test Loss')
     plt.legend()
     plt.title('Training History')
-    plt.savefig('data/Training_loss.png')
+    plt.savefig(os.path.join(data_folder,'Training_loss.png'))
     plt.close()
 
 

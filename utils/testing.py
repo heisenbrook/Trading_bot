@@ -1,5 +1,6 @@
 import torch
-import pandas as pd
+import os
+from utils.keys import data_folder
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
@@ -39,7 +40,7 @@ def plot_bar(targets, preds):
                       xaxis2=dict(rangeslider=dict(visible=False)))
     
 
-    fig.write_image('data/Pred_vs_real_candles.png')
+    fig.write_image(os.path.join(data_folder,'Pred_vs_real_candles.png'))
    
 
 
@@ -66,8 +67,8 @@ def testing(device, model, loader, full_data):
     preds_real = full_data.denorm_pred(all_preds, all_time)
     targets_real = full_data.denorm_pred(all_targets, all_time)
 
-    preds_real.sort_index().to_csv('data/preds_real.csv')
-    targets_real.sort_index().to_csv('data/targets_real.csv')
+    preds_real.sort_index().to_csv(os.path.join(data_folder,'preds_real.csv'))
+    targets_real.sort_index().to_csv(os.path.join(data_folder,'targets_real.csv'))
 
     plot_bar(targets_real, preds_real)
 

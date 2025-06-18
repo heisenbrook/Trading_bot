@@ -1,11 +1,12 @@
 from tvDatafeed import TvDatafeed, Interval
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader, random_split
 from utils.model import FinanceTransf
-from utils.keys import user, psw
+from utils.keys import user, psw, data_folder
 from utils.data import BTCDataset
 from utils.train import train_test
 from utils.testing import testing
@@ -44,9 +45,9 @@ optimizer = optim.Adam(td_bot.parameters(), lr=0.001, weight_decay=1e-5)
 nn.utils.clip_grad_norm_(td_bot.parameters(), max_norm=1.0)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
 
-train_test(device, 50, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
+# train_test(device, 50, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
 
-td_bot.load_state_dict(torch.load('data/td_best_model.pth', weights_only=True))
+td_bot.load_state_dict(torch.load(os.path.join(data_folder,'td_best_model.pth'), weights_only=True))
 
 testing(device, td_bot, eval_loader, full_data)
 
