@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader, random_split
-from utils.model import FinanceTransf
+from utils.model import FinanceTransf, DirectionalAccuracyLoss
 from utils.keys import user, psw, data_folder
 from utils.data import BTCDataset
 from utils.train import train_test
@@ -33,19 +33,19 @@ eval_loader = DataLoader(eval_data, batch_size, shuffle=False)
 td_bot = FinanceTransf(
     num_features=len(full_data.feat_cols),
     n_targets=len(full_data.target_col),
-    n_layers=2
+    n_layers=4
 )
 td_bot.to(device)
 for p in td_bot.parameters():
     if p.dim() > 1:
         nn.init.xavier_uniform_(p)
 
-criterion = nn.MSELoss()
-optimizer = optim.Adam(td_bot.parameters(), lr=0.001, weight_decay=1e-5)
+criterion = DirectionalAccuracyLoss()
+optimizer = optim.Adam(td_bot.parameters(), lr=0.0001, weight_decay=1e-5)
 nn.utils.clip_grad_norm_(td_bot.parameters(), max_norm=1.0)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
 
-train_test(device, 50, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
+train_test(device, 500, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
 
 td_bot = torch.jit.load(os.path.join(data_folder,'td_best_model.pt'))
 

@@ -3,7 +3,6 @@ import os
 from utils.keys import data_folder
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import mean_absolute_error
 
@@ -12,8 +11,9 @@ def metrics(targets, preds):
 
     mae_open = mean_absolute_error(targets['next_open'], preds['next_open'])
     mae_close = mean_absolute_error(targets['next_close'], preds['next_close'])
+    max_drawdown = np.max(np.abs(targets['next_close'] - preds['next_close']))
 
-    return mae_open, mae_close
+    return mae_open, mae_close, max_drawdown
 
 def plot_bar(targets, preds):
 
@@ -72,10 +72,11 @@ def testing(device, model, loader, full_data):
 
     plot_bar(targets_real, preds_real)
 
-    m_open, m_close = metrics(targets_real, preds_real)
+    m_open, m_close, max_drawdown = metrics(targets_real, preds_real)
 
     print(f'MAE Open: ${m_open:.2f}')
     print(f'MAE Close: ${m_close:.2f}')
+    print(f'Max Drawdown: ${max_drawdown:.2f}')
 
 
 

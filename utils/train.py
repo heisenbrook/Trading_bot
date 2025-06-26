@@ -48,7 +48,8 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
                            ncols=80):
             data, label = data.to(device), label.to(device)
             out = model(data)
-            tot_loss += criterion(out, label).item()
+            loss = criterion(out, label)
+            tot_loss += loss.item()
     
     return tot_loss/len(loader)
 
@@ -58,6 +59,7 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
     best_test_loss = float('inf')
 
     train_losses, test_losses = [], []
+    patience = 0
 
     for epoch in range(n_epochs):
         train_loss = train_epoch(device, epoch, n_epochs, model, optimizer, criterion, train_loader)
@@ -73,11 +75,15 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
 
         if test_loss < best_test_loss:
+            patience = 0
             best_test_loss = test_loss
             saved_model = torch.jit.script(model)
             saved_model.save(os.path.join(data_folder,'td_best_model.pt'))
+        elif epoch > 10 and test_loss > best_test_loss:
+            patience += 1
 
-        elif epoch >10 and test_loss > best_test_loss * 1.4:
+        if epoch >30 and patience > 30:
+            x = dt.now()
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
             break

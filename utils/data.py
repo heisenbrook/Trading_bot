@@ -25,7 +25,7 @@ class BTCDataset(Dataset):
         self.preprocessor = ColumnTransformer(
             transformers=[
                 ('cols', Pipeline([
-                         ('log_returns', FunctionTransformer(func= lambda x: (np.log(x) + 1e-7) , inverse_func= lambda x: (np.exp(x) + 1e-7) , check_inverse=False)),
+                         #('log_returns', FunctionTransformer(func= lambda x: (np.log(x) + 1e-7) , inverse_func= lambda x: (np.exp(x) + 1e-7) , check_inverse=True)),
                          ('robust', RobustScaler()),
                          ('power', PowerTransformer())
                 ]), self.cols),

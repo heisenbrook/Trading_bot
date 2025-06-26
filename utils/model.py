@@ -46,9 +46,29 @@ class FinanceTransf(nn.Module):
     
     def forward(self, x):
         x = self.input(x)
-        #x = x * np.sqrt(self.d_model)
+        x = x * torch.sqrt(torch.tensor(self.d_model, dtype=torch.uint8))
         x = self.pe(x)
         x = self.transformer(x)
         x = x[:, -self.horizon:, :]
 
         return self.out(x)
+    
+
+class DirectionalAccuracyLoss(nn.Module):
+    def __init__(self, alpha=0.6):
+        super().__init__()
+        self.alpha = alpha
+        self.mse= nn.L1Loss(reduction='mean')
+
+    def forward(self, preds, targets):
+
+        custom_mse = self.mse(preds, targets)
+
+        preds = torch.sign(preds[:, :, -1] - preds[:, :, -2])
+        targets = torch.sign(targets[:, :, -1] - targets[:, :, -2])
+        correct = (preds == targets).float()
+
+        return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
+    
+    
+
