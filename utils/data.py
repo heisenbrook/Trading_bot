@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 
 class BTCDataset(Dataset):
-    def __init__(self, features, win_size=24, horizon=6):
+    def __init__(self, features, win_size=168, horizon=6):
         features = preprocess(features)
         labels = create_labels(features)
 
@@ -15,6 +15,7 @@ class BTCDataset(Dataset):
         self.horizon = horizon
 
         self.data = features.join(labels)
+        
 
         self.cols = ['high','low','open','close','RSI','next_high','next_low','next_open','next_close']
         self.feat_cols = ['high','low','open','close','RSI','next_high','next_low','next_open','next_close','volume']
@@ -25,17 +26,18 @@ class BTCDataset(Dataset):
         self.preprocessor = ColumnTransformer(
             transformers=[
                 ('cols', Pipeline([
-                         #('log_returns', FunctionTransformer(func= lambda x: (np.log(x) + 1e-7) , inverse_func= lambda x: (np.exp(x) + 1e-7) , check_inverse=True)),
+                        ('log_returns', FunctionTransformer(func= lambda x: np.log(x), 
+                                                            inverse_func= lambda x: np.exp(x), 
+                                                            check_inverse=False)),
                          ('robust', RobustScaler()),
                          ('power', PowerTransformer())
-                ]), self.cols),
-                ('volume', RobustScaler(), ['volume'])
+                ]), self.feat_cols),
+                #('volume', RobustScaler(), ['volume'])
             ],
             remainder='passthrough'
         )
 
         self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
-
         self.data.ffill(inplace=True)
 
     def __len__(self):

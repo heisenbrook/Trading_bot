@@ -1,4 +1,5 @@
 import torch
+import optuna
 import os
 from utils.keys import data_folder
 from plotly.subplots import make_subplots

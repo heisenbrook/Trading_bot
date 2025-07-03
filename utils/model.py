@@ -20,7 +20,7 @@ class PosEnc(nn.Module):
     
 
 class FinanceTransf(nn.Module):
-    def __init__(self, num_features, n_targets, n_layers, horizon=6, win_size=24, d_model=64):
+    def __init__(self, num_features, n_targets, n_layers, horizon, win_size, d_model):
         super().__init__()
         self.d_model = d_model
         self.horizon = horizon
@@ -29,8 +29,8 @@ class FinanceTransf(nn.Module):
         self.pe = PosEnc(d_model, win_size)
         encoder = nn.TransformerEncoderLayer(
             d_model=d_model,
-            dim_feedforward=256,
-            nhead=4,
+            dim_feedforward=4*d_model,
+            nhead=max(2, d_model // 16),
             dropout=0.1,
             activation='gelu',
             batch_first=True,
@@ -55,7 +55,7 @@ class FinanceTransf(nn.Module):
     
 
 class DirectionalAccuracyLoss(nn.Module):
-    def __init__(self, alpha=0.6):
+    def __init__(self, alpha=0.5):
         super().__init__()
         self.alpha = alpha
         self.mse= nn.L1Loss(reduction='mean')
@@ -64,9 +64,9 @@ class DirectionalAccuracyLoss(nn.Module):
 
         custom_mse = self.mse(preds, targets)
 
-        preds = torch.sign(preds[:, :, -1] - preds[:, :, -2])
-        targets = torch.sign(targets[:, :, -1] - targets[:, :, -2])
-        correct = (preds == targets).float()
+        preds_s = torch.sign(preds[:, :, -1] - preds[:, :, -2])
+        targets_s = torch.sign(targets[:, :, -1] - targets[:, :, -2])
+        correct = (preds_s == targets_s).float()
 
         return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
     

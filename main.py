@@ -33,17 +33,21 @@ eval_loader = DataLoader(eval_data, batch_size, shuffle=False)
 td_bot = FinanceTransf(
     num_features=len(full_data.feat_cols),
     n_targets=len(full_data.target_col),
-    n_layers=4
+    n_layers=2,
+    horizon=full_data.horizon,
+    win_size=full_data.win_size,
+    d_model=64
 )
+
 td_bot.to(device)
 for p in td_bot.parameters():
     if p.dim() > 1:
         nn.init.xavier_uniform_(p)
 
 criterion = DirectionalAccuracyLoss()
-optimizer = optim.Adam(td_bot.parameters(), lr=0.0001, weight_decay=1e-5)
+optimizer = optim.Adam(td_bot.parameters(), lr=0.00001, weight_decay=1e-5)
 nn.utils.clip_grad_norm_(td_bot.parameters(), max_norm=1.0)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='min', factor=0.5)
 
 train_test(device, 500, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
 
