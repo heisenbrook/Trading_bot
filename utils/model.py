@@ -20,7 +20,16 @@ class PosEnc(nn.Module):
     
 
 class FinanceTransf(nn.Module):
-    def __init__(self, num_features, n_targets, n_layers, horizon, win_size, d_model):
+    def __init__(self, num_features, 
+                 n_targets, 
+                 n_layers, 
+                 d_model, 
+                 n_heads,
+                 dim_feedforward,
+                 dropout,
+                 activation,
+                 horizon, 
+                 win_size):
         super().__init__()
         self.d_model = d_model
         self.horizon = horizon
@@ -29,10 +38,10 @@ class FinanceTransf(nn.Module):
         self.pe = PosEnc(d_model, win_size)
         encoder = nn.TransformerEncoderLayer(
             d_model=d_model,
-            dim_feedforward=4*d_model,
-            nhead=max(2, d_model // 16),
-            dropout=0.1,
-            activation='gelu',
+            dim_feedforward=dim_feedforward,
+            nhead=n_heads,
+            dropout=dropout,
+            activation=activation,
             batch_first=True,
             layer_norm_eps=1e-6
         )
@@ -55,7 +64,7 @@ class FinanceTransf(nn.Module):
     
 
 class DirectionalAccuracyLoss(nn.Module):
-    def __init__(self, alpha=0.5):
+    def __init__(self, alpha):
         super().__init__()
         self.alpha = alpha
         self.mse= nn.L1Loss(reduction='mean')

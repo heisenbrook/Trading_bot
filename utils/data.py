@@ -7,8 +7,8 @@ import pandas as pd
 import numpy as np
 
 class BTCDataset(Dataset):
-    def __init__(self, features, win_size=168, horizon=6):
-        features = preprocess(features)
+    def __init__(self, features, win_size, horizon):
+
         labels = create_labels(features)
 
         self.win_size = win_size

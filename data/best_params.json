@@ -1,0 +1,14 @@
+{
+    "n_layers": 2,
+    "d_model": 64,
+    "n_heads": 8,
+    "dim_feedforward": 128,
+    "dropout": 0.4,
+    "activation": "relu",
+    "horizon": 12,
+    "win_size": 167,
+    "batch_size": 32,
+    "alpha": 0.7000000000000001,
+    "lr": 0.00032776512446202867,
+    "n_epochs": 140
+}
