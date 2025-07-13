@@ -20,10 +20,15 @@ btcusdt  = tv.get_hist(symbol='BTCUSDT',
 
 btcusdt = preprocess(btcusdt)
 
-pruner = MedianPruner(n_startup_trials=10, n_warmup_steps=20, interval_steps=5)
+pruner = MedianPruner(n_startup_trials=5, n_warmup_steps=20, interval_steps=5)
+sampler = optuna.samplers.TPESampler(seed=42)
 
-study = optuna.create_study(direction='minimize', pruner=pruner, study_name='BTC_Transf')
-study.optimize(lambda trial: objective(trial, device, btcusdt), n_trials=50)
+study = optuna.create_study(direction='minimize', 
+                            sampler=sampler, 
+                            pruner=pruner, 
+                            study_name='BTC_Transf',
+                            load_if_exists=True)
+study.optimize(lambda trial: objective(trial, device, btcusdt), n_trials=100)
 
 best_params = study.best_params
 best_value = study.best_value

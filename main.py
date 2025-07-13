@@ -7,7 +7,7 @@ import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader, random_split
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
-from utils.keys import user, psw, data_folder
+from utils.keys import user, psw, data_folder, generator
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -31,7 +31,7 @@ full_data = BTCDataset(btcusdt,
                        win_size=best_params['win_size'], 
                        horizon=best_params['horizon'])
 
-train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1])
+train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1], generator=generator)
 
 batch_size = best_params['batch_size']
 train_loader = DataLoader(train_data, batch_size, shuffle=False)

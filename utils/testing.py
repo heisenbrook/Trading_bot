@@ -2,8 +2,10 @@ import torch
 from torch.utils.data import DataLoader, random_split
 from datetime import datetime as dt
 import os
+from optuna import TrialPruned
+from tqdm import tqdm
 from utils.data import BTCDataset
-from utils.keys import data_folder
+from utils.keys import data_folder, generator
 from utils.train import train_epoch, eval_epoch
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
 from plotly.subplots import make_subplots
@@ -32,7 +34,7 @@ def objective(trial, device, btcusdt):
 
     full_data = BTCDataset(btcusdt, params['win_size'], params['horizon'])
 
-    train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1])
+    train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1], generator=generator)
 
     train_loader = DataLoader(train_data, params['batch_size'], shuffle=False)
     test_loader = DataLoader(test_data, params['batch_size'], shuffle=False)
@@ -85,6 +87,11 @@ def objective(trial, device, btcusdt):
             best_test_loss = test_loss
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
+            m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+            tot_loss = m_open + m_close + max_drawdown
+            trial.report(tot_loss, epoch)
+            if trial.should_prune():
+                raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | MAE Open: ${m_open:.2f} | MAE Close: ${m_close:.2f} | Max Drawdown: ${max_drawdown:.2f}')
 
         if epoch >30 and patience > 30:
             x = dt.now()
@@ -92,32 +99,12 @@ def objective(trial, device, btcusdt):
             print('Early stop')
             break
 
-    model.eval()
-    all_preds, all_targets, all_time = [], [], []
-
-    with torch.no_grad():
-        for data, label, time in eval_loader:
-            data = data.to(device)
-            preds = model(data) 
-            all_preds.append(preds.cpu().numpy())
-            all_targets.append(label.cpu().numpy())
-            all_time.append(time)
-
-    all_preds = np.concatenate(all_preds, axis=0)
-    all_targets = np.concatenate(all_targets, axis=0)
-    all_time = np.concatenate(all_time, axis=0)
-
-    all_preds = all_preds.reshape(-1,4)
-    all_targets = all_targets.reshape(-1,4)
-    all_time = all_time.reshape(-1)
-
-    preds_real = full_data.denorm_pred(all_preds, all_time)
-    targets_real = full_data.denorm_pred(all_targets, all_time)
-    m_open, m_close, max_drawdown = metrics(targets_real, preds_real)
-
+    m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
     tot_loss = m_open + m_close + max_drawdown
-
+    
     return tot_loss
+
+        
 
 
 def metrics(targets, preds):
@@ -184,6 +171,38 @@ def testing(device, model, loader, full_data):
     targets_real.sort_index().to_csv(os.path.join(data_folder,'targets_real.csv'))
 
     plot_bar(targets_real, preds_real)
+
+    m_open, m_close, max_drawdown = metrics(targets_real, preds_real)
+
+    return m_open, m_close, max_drawdown
+
+
+def optim_testing(device, model, loader, full_data, epoch, n_epochs):
+    model.eval()
+    all_preds, all_targets, all_time = [], [], []
+
+    with torch.no_grad():
+        for data, label, time in tqdm(loader,
+                           desc=f'Epoch {epoch +1}/{n_epochs} | evaluation test',
+                           total= len(loader),
+                           leave=False,
+                           ncols=80):
+            data = data.to(device)
+            preds = model(data) 
+            all_preds.append(preds.cpu().numpy())
+            all_targets.append(label.cpu().numpy())
+            all_time.append(time)
+
+    all_preds = np.concatenate(all_preds, axis=0)
+    all_targets = np.concatenate(all_targets, axis=0)
+    all_time = np.concatenate(all_time, axis=0)
+
+    all_preds = all_preds.reshape(-1,4)
+    all_targets = all_targets.reshape(-1,4)
+    all_time = all_time.reshape(-1)
+
+    preds_real = full_data.denorm_pred(all_preds, all_time)
+    targets_real = full_data.denorm_pred(all_targets, all_time)
 
     m_open, m_close, max_drawdown = metrics(targets_real, preds_real)
 
