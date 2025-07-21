@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 import torch
 import pandas as pd
 import numpy as np
+from scipy.optimize import curve_fit
 
 class BTCDataset(Dataset):
     def __init__(self, features, win_size, horizon):
@@ -17,8 +18,9 @@ class BTCDataset(Dataset):
         self.data = features.join(labels)
         
 
-        self.cols = ['high','low','open','close','RSI','next_high','next_low','next_open','next_close']
-        self.feat_cols = ['high','low','open','close','RSI','next_high','next_low','next_open','next_close','volume']
+        
+        self.feat_cols = ['high','low','open','close','RSI','power_law','power_law_lower','power_law_upper','power_law_bands_lower','power_law_bands_upper','next_high','next_low','next_open','next_close','volume']
+
         self.target_col = labels.columns.to_list()
         self.timestamps = self.data.index.values
         self.time_index = np.arange(len(self.data))
@@ -26,9 +28,9 @@ class BTCDataset(Dataset):
         self.preprocessor = ColumnTransformer(
             transformers=[
                 ('cols', Pipeline([
-                        ('log_returns', FunctionTransformer(func= lambda x: np.log(x), 
-                                                            inverse_func= lambda x: np.exp(x), 
-                                                            check_inverse=False)),
+                        #  ('log_returns', FunctionTransformer(func= lambda x: np.log(x), 
+                        #                                      inverse_func= lambda x: np.exp(x), 
+                        #                                      check_inverse=False)),
                          ('robust', RobustScaler()),
                          ('power', PowerTransformer())
                 ]), self.feat_cols),
@@ -93,7 +95,7 @@ def RSI(n_candles, data):
 def create_labels(data):
     label = data.shift(-6)
     label.iloc[:-6]
-    label.drop(['volume','RSI'], axis=1, inplace=True)
+    label.drop(['RSI','power_law','power_law_lower','power_law_upper','power_law_bands_lower','power_law_bands_upper','volume'], axis=1, inplace=True)
     label = label.rename({'high':'next_high','low':'next_low','open':'next_open','close':'next_close'}, axis='columns')
 
     return label
@@ -102,6 +104,11 @@ def preprocess(data):
     data.drop('symbol', axis=1, inplace=True)
 
     data['RSI'] = RSI(14, data)
+    data['power_law'] = fit_power_law(data['close'])
+    data['power_law_lower'] = data['power_law'] * 0.5
+    data['power_law_upper'] = data['power_law'] * 2.0
+    data['power_law_bands_lower'], data['power_law_bands_upper'] = powerlaw_bands(data['power_law'], data['close'])
+
 
     data = data.iloc[15:]
 
@@ -110,6 +117,28 @@ def preprocess(data):
 
     return data
 
+def power_law(x, a, b):
+    return a * (x**b)
+
+def fit_power_law(data):
+    x = np.arange(len(data))
+    y = data.values
+    valid = y > 0
+    x_fit = x[valid]
+    y_fit = y[valid]
+
+    params, _ = curve_fit(power_law, x_fit, y_fit, p0=[1, 1])
+
+    fitted_y = power_law(x, *params)
+
+    return fitted_y
+
+def powerlaw_bands(pw, close, window = 1460):
+    residual = (close - pw) / pw
+    rolling_std = residual.rolling(window=window, min_periods=1).std()
+    lower_band = pw * (1 - 1.5 * rolling_std)
+    upper_band = pw * (1 + 1.5 * rolling_std) 
+    return lower_band, upper_band
 
 
 

@@ -97,6 +97,9 @@ def objective(trial, device, btcusdt):
             x = dt.now()
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
+            print(f'max drawdown: {max_drawdown:.2f}')
+            print(f'MAE Open: ${m_open:.2f}')
+            print(f'MAE Close: ${m_close:.2f}')
             break
 
     m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])

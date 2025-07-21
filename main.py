@@ -18,11 +18,12 @@ tv = TvDatafeed(user, psw)
 
 btcusdt = tv.get_hist(symbol='BTCUSDT', 
                       exchange='BINANCE', 
-                      interval=Interval.in_4_hour, 
+                      interval=Interval.in_daily, 
                       n_bars=10000,
                       extended_session=True)
 
 btcusdt = preprocess(btcusdt)
+# btcusdt.sort_index().to_csv(os.path.join(data_folder,'btcusdt.csv'))
 
 with open(os.path.join(data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
