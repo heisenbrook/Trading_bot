@@ -1,4 +1,4 @@
-from sklearn.preprocessing import RobustScaler, FunctionTransformer, PowerTransformer, StandardScaler, QuantileTransformer
+from sklearn.preprocessing import RobustScaler, FunctionTransformer, PowerTransformer, StandardScaler, MinMaxScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from torch.utils.data import Dataset
@@ -7,34 +7,39 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
 
+
 class BTCDataset(Dataset):
     def __init__(self, features, win_size, horizon):
-
-        labels = create_labels(features)
 
         self.win_size = win_size
         self.horizon = horizon
 
+        labels = create_labels(features, self.horizon)
+
         self.data = features.join(labels)
         
-
-        
-        self.feat_cols = ['high','low','open','close','RSI','power_law','power_law_lower','power_law_upper','power_law_bands_lower','power_law_bands_upper','next_high','next_low','next_open','next_close','volume']
-
+        self.prices_col = ['high', 'low', 'open', 'close']
+        self.bands_col = ['power_law_lower', 'power_law_upper', 'power_law_bands_lower', 'power_law_bands_upper']
+        self.indicators_col = ['RSI', 'power_law']
+        self.volume_col = ['volume']
+        self.feat_cols = self.data.columns.to_list()
         self.target_col = labels.columns.to_list()
         self.timestamps = self.data.index.values
         self.time_index = np.arange(len(self.data))
 
         self.preprocessor = ColumnTransformer(
             transformers=[
-                ('cols', Pipeline([
-                        #  ('log_returns', FunctionTransformer(func= lambda x: np.log(x), 
-                        #                                      inverse_func= lambda x: np.exp(x), 
-                        #                                      check_inverse=False)),
+                ('prices', Pipeline([
                          ('robust', RobustScaler()),
                          ('power', PowerTransformer())
-                ]), self.feat_cols),
-                #('volume', RobustScaler(), ['volume'])
+                ]), self.prices_col),
+                ('volume', PowerTransformer(), self.volume_col),
+                ('indicators', StandardScaler(), self.indicators_col),
+                ('bands', MinMaxScaler(), self.bands_col),
+                ('targets', Pipeline([
+                         ('robust', RobustScaler()),
+                         ('power', PowerTransformer())
+                ]), self.target_col)
             ],
             remainder='passthrough'
         )
@@ -52,31 +57,39 @@ class BTCDataset(Dataset):
 
         return torch.FloatTensor(x), torch.FloatTensor(y), last_time_index
     
+    
     def denorm_pred(self, y, last_time_index):
         if isinstance(y, torch.Tensor):
             y = y.detach().cpu().numpy()
+        
+        dummy = np.zeros((len(y), len(self.prices_col)))
+        dummy[:, -len(self.target_col):] = y
+        
+        transf = self.preprocessor.named_transformers_['targets']
 
-        dummy = np.zeros((y.shape[0], len(self.feat_cols)))
-        dummy[:, (-len(self.target_col)-1):-1] = y
-        start = 0
-        for name, transf, feat in self.preprocessor.transformers_:
-            if name == 'remainder':
-                continue
-            end = start + len(feat)
-            y_slice = dummy[:, start:end]
-            if isinstance(transf, Pipeline):
-                for _, step in reversed(transf.steps):
-                    if hasattr(step, 'inverse_transform'):
-                        y_slice = step.inverse_transform(y_slice)
+        if isinstance(transf, Pipeline):
+            for _, step in reversed(transf.steps):
+                if hasattr(step, 'inverse_transform'):
+                    dummy = step.inverse_transform(dummy)
 
-            elif hasattr(transf, 'inverse_transform'):
-                y_slice = transf.inverse_transform(y_slice)
-            
-            dummy[:, start:end] = y_slice
+        df = pd.DataFrame(dummy, columns=self.target_col, index=self.timestamps[last_time_index])
 
-        df = pd.DataFrame(dummy, columns=self.feat_cols, index=self.timestamps[last_time_index])
+        return df
+    
+    def denorm_train(self, y):
+        if isinstance(y, torch.Tensor):
+            y = y.detach().cpu().numpy()
+        
+        dummy = np.zeros((len(y), len(self.prices_col)))
+        dummy[:, -len(self.target_col):] = y
+        
+        transf = self.preprocessor.named_transformers_['prices']
 
-        return df[self.target_col]
+        if isinstance(transf, Pipeline):
+            for _, step in reversed(transf.steps):
+                if hasattr(step, 'inverse_transform'):
+                    dummy = step.inverse_transform(dummy)
+
 
 
 def RSI(n_candles, data):
@@ -92,9 +105,9 @@ def RSI(n_candles, data):
     
     return rsi
 
-def create_labels(data):
-    label = data.shift(-6)
-    label.iloc[:-6]
+def create_labels(data, horizon):
+    label = data.shift(-horizon)
+    label.iloc[:-horizon]
     label.drop(['RSI','power_law','power_law_lower','power_law_upper','power_law_bands_lower','power_law_bands_upper','volume'], axis=1, inplace=True)
     label = label.rename({'high':'next_high','low':'next_low','open':'next_open','close':'next_close'}, axis='columns')
 
@@ -112,8 +125,8 @@ def preprocess(data):
 
     data = data.iloc[15:]
 
-    volume = data.pop('volume')
-    data.insert(len(data.columns), 'volume', volume)
+    # volume = data.pop('volume')
+    # data.insert(len(data.columns), 'volume', volume)
 
     return data
 

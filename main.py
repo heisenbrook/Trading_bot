@@ -12,13 +12,14 @@ from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 
 tv = TvDatafeed(user, psw)
 
 btcusdt = tv.get_hist(symbol='BTCUSDT', 
                       exchange='BINANCE', 
-                      interval=Interval.in_daily, 
+                      interval=Interval.in_4_hour, 
                       n_bars=10000,
                       extended_session=True)
 
@@ -76,4 +77,4 @@ print(f'MAE Close: ${mae_close:.2f}')
 print(f'Max Drawdown: ${max_drawdown:.2f}')
 
 
-app.run(debug=True, use_reloader=False, port=8050)
+# app.run(debug=True, use_reloader=False, port=8050)

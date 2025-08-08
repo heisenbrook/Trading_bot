@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+
 class PosEnc(nn.Module):
     def __init__(self, d_model, win_size):
         super().__init__()
@@ -17,10 +18,24 @@ class PosEnc(nn.Module):
 
     def forward(self, x):
         return x + self.pe[:, :x.size(1),:]
+
+class FeatureAwareEmbedding(nn.Module):
+    def __init__(self, num_features, d_model):
+        super().__init__()
+        self.embedding = nn.Embedding(num_features, d_model)
+
+    def forward(self, x):
+        type_ids = torch.arange(x.size(-1), device=x.device)
+        print(type_ids.shape, x.shape)
+        embedded = self.embedding(type_ids)
+        embedded = embedded.unsqueeze(0)
+        print(embedded.shape)
+        return x + embedded
     
 
 class FinanceTransf(nn.Module):
-    def __init__(self, num_features, 
+    def __init__(self, 
+                 num_features, 
                  n_targets, 
                  n_layers, 
                  d_model, 
@@ -35,6 +50,7 @@ class FinanceTransf(nn.Module):
         self.horizon = horizon
 
         self.input = nn.Linear(num_features, d_model)
+        self.feat_emb = FeatureAwareEmbedding(num_features, d_model)
         self.pe = PosEnc(d_model, win_size)
         encoder = nn.TransformerEncoderLayer(
             d_model=d_model,
@@ -55,6 +71,7 @@ class FinanceTransf(nn.Module):
     
     def forward(self, x):
         x = self.input(x)
+        x = self.feat_emb(x)
         x = x * torch.sqrt(torch.tensor(self.d_model, dtype=torch.uint8))
         x = self.pe(x)
         x = self.transformer(x)
@@ -67,7 +84,7 @@ class DirectionalAccuracyLoss(nn.Module):
     def __init__(self, alpha):
         super().__init__()
         self.alpha = alpha
-        self.mse= nn.L1Loss(reduction='mean')
+        self.mse= nn.MSELoss()
 
     def forward(self, preds, targets):
 

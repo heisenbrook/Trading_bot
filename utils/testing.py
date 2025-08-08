@@ -6,7 +6,7 @@ from optuna import TrialPruned
 from tqdm import tqdm
 from utils.data import BTCDataset
 from utils.keys import data_folder, generator
-from utils.train import train_epoch, eval_epoch
+from utils.train import train_epoch_test, eval_epoch_test
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
@@ -28,7 +28,8 @@ def objective(trial, device, btcusdt):
         'batch_size': trial.suggest_int('batch_size', 32, 128, step=16),
         'alpha': trial.suggest_float('alpha', 0.1, 0.9, step=0.1),
         'lr': trial.suggest_float('lr', 1e-5, 1e-3, log=True),
-        'n_epochs': trial.suggest_int('n_epochs', 50, 200, step=10)
+        'n_epochs': trial.suggest_int('n_epochs', 50, 200, step=10),
+        'optim': trial.suggest_categorical('optim', ['adam', 'sgd'])
     }
 
 
@@ -59,7 +60,11 @@ def objective(trial, device, btcusdt):
             torch.nn.init.xavier_uniform_(p)
 
     criterion = DirectionalAccuracyLoss(params['alpha'])
-    optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'], weight_decay=1e-5)
+    if params['optim'] == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'], weight_decay=1e-5)
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=params['lr'], momentum=0.9, weight_decay=1e-5)
+        
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='min', factor=0.5)
 
@@ -70,17 +75,17 @@ def objective(trial, device, btcusdt):
 
     for epoch in range(params['n_epochs']):
         model.train()
-        train_loss = train_epoch(device, epoch, params['n_epochs'], model, optimizer, criterion, train_loader)
-        test_loss = eval_epoch(device, epoch, params['n_epochs'], model, criterion, test_loader)
+        train_loss = train_epoch_test(device, model, optimizer, criterion, train_loader)
+        test_loss = eval_epoch_test(device, model, criterion, test_loader)
     
         scheduler.step(test_loss)
 
         train_losses.append(train_loss)
         test_losses.append(test_loss)
 
-        if (epoch + 1) % (params['n_epochs']//10) == 0 or (epoch + 1) == 1:
-            x = dt.now()
-            print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
+        # if (epoch + 1) % (params['n_epochs']//10) == 0 or (epoch + 1) == 1:
+        #     x = dt.now()
+        #     print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
 
         if test_loss < best_test_loss:
             patience = 0
@@ -94,16 +99,19 @@ def objective(trial, device, btcusdt):
                 raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | MAE Open: ${m_open:.2f} | MAE Close: ${m_close:.2f} | Max Drawdown: ${max_drawdown:.2f}')
 
         if epoch >30 and patience > 30:
-            x = dt.now()
-            print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
-            print('Early stop')
-            print(f'max drawdown: {max_drawdown:.2f}')
-            print(f'MAE Open: ${m_open:.2f}')
-            print(f'MAE Close: ${m_close:.2f}')
+            # x = dt.now()
+            # print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
+            # print('Early stop')
+            # print(f'max drawdown: {max_drawdown:.2f}')
+            # print(f'MAE Open: ${m_open:.2f}')
+            # print(f'MAE Close: ${m_close:.2f}')
             break
 
     m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
     tot_loss = m_open + m_close + max_drawdown
+    # print(f'max drawdown: {max_drawdown:.2f}')
+    # print(f'MAE Open: ${m_open:.2f}')
+    # print(f'MAE Close: ${m_close:.2f}')
     
     return tot_loss
 
@@ -152,7 +160,11 @@ def testing(device, model, loader, full_data):
     all_preds, all_targets, all_time = [], [], []
 
     with torch.no_grad():
-        for data, label, time in loader:
+        for data, label, time in tqdm(loader,
+                           desc=f'Evaluating model',
+                           total= len(loader),
+                           leave=False,
+                           ncols=80):
             data = data.to(device)
             preds = model(data) 
             all_preds.append(preds.cpu().numpy())
@@ -185,11 +197,7 @@ def optim_testing(device, model, loader, full_data, epoch, n_epochs):
     all_preds, all_targets, all_time = [], [], []
 
     with torch.no_grad():
-        for data, label, time in tqdm(loader,
-                           desc=f'Epoch {epoch +1}/{n_epochs} | evaluation test',
-                           total= len(loader),
-                           leave=False,
-                           ncols=80):
+        for data, label, time in loader:
             data = data.to(device)
             preds = model(data) 
             all_preds.append(preds.cpu().numpy())

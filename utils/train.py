@@ -37,6 +37,24 @@ def train_epoch(device, epoch, n_epochs, model, optimizer, criterion, loader):
     
     return tot_loss/len(loader)
 
+def train_epoch_test(device, model, optimizer, criterion, loader):
+    model.train()
+    tot_loss = 0
+    for data, label, _ in loader:
+        data, label = data.to(device), label.to(device)
+
+        optimizer.zero_grad()
+        with torch.autocast(device_type='cuda'):
+            out = model(data)
+            loss = criterion(out, label)
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+
+        tot_loss += loss.item()
+    
+    return tot_loss/len(loader)
+
 def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
     model.eval()
     tot_loss = 0
@@ -46,6 +64,18 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
                            total= len(loader),
                            leave=False,
                            ncols=80):
+            data, label = data.to(device), label.to(device)
+            out = model(data)
+            loss = criterion(out, label)
+            tot_loss += loss.item()
+    
+    return tot_loss/len(loader)
+
+def eval_epoch_test(device, model, criterion, loader):
+    model.eval()
+    tot_loss = 0
+    with torch.no_grad():
+        for data, label, _ in loader:
             data, label = data.to(device), label.to(device)
             out = model(data)
             loss = criterion(out, label)
