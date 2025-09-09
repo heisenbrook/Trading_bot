@@ -12,8 +12,7 @@ from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
 
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device('cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 tv = TvDatafeed(user, psw)
 
@@ -24,7 +23,7 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
                       extended_session=True)
 
 btcusdt = preprocess(btcusdt)
-# btcusdt.sort_index().to_csv(os.path.join(data_folder,'btcusdt.csv'))
+#btcusdt.sort_index().to_csv(os.path.join(data_folder,'btcusdt.csv'))
 
 with open(os.path.join(data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
@@ -44,7 +43,7 @@ lr = best_params['lr']
 alpha = best_params['alpha']
 
 td_bot = FinanceTransf(
-    num_features=len(full_data.feat_cols),
+    num_features=full_data.feat_cols_num,
     n_targets=len(full_data.target_col),
     n_layers=best_params['n_layers'],
     d_model=best_params['d_model'],

@@ -23,6 +23,7 @@ class BTCDataset(Dataset):
         self.indicators_col = ['RSI', 'power_law']
         self.volume_col = ['volume']
         self.feat_cols = self.data.columns.to_list()
+        self.feat_cols_num = [len(self.prices_col), len(self.volume_col), len(self.indicators_col), len(self.bands_col)]
         self.target_col = labels.columns.to_list()
         self.timestamps = self.data.index.values
         self.time_index = np.arange(len(self.data))
@@ -75,21 +76,6 @@ class BTCDataset(Dataset):
         df = pd.DataFrame(dummy, columns=self.target_col, index=self.timestamps[last_time_index])
 
         return df
-    
-    def denorm_train(self, y):
-        if isinstance(y, torch.Tensor):
-            y = y.detach().cpu().numpy()
-        
-        dummy = np.zeros((len(y), len(self.prices_col)))
-        dummy[:, -len(self.target_col):] = y
-        
-        transf = self.preprocessor.named_transformers_['prices']
-
-        if isinstance(transf, Pipeline):
-            for _, step in reversed(transf.steps):
-                if hasattr(step, 'inverse_transform'):
-                    dummy = step.inverse_transform(dummy)
-
 
 
 def RSI(n_candles, data):
@@ -125,13 +111,10 @@ def preprocess(data):
 
     data = data.iloc[15:]
 
-    # volume = data.pop('volume')
-    # data.insert(len(data.columns), 'volume', volume)
-
     return data
 
 def power_law(x, a, b):
-    return a * (x**b)
+    return a * ((x + np.finfo(float).eps)**b)
 
 def fit_power_law(data):
     x = np.arange(len(data))

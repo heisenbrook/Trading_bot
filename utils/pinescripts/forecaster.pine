@@ -1,0 +1,103 @@
+// @version=5
+// This script is designed to be used as a tool for technical analysis on TradingView.
+// It combines Relative Strength Index (RSI), support/resistance levels, and advanced
+// pattern recognition to generate a "safe" forecast signal.
+//
+// The "numerology" aspect is interpreted as the quantifiable identification
+// of repeatable patterns in price action.
+
+// ------------------- General Script Settings -------------------
+indicator(title="Advanced Forecast Script", shorttitle="AFS", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// ------------------- User Inputs -------------------
+// RSI Settings
+rsiLen = input.int(14, title="RSI Period", minval=1)
+rsiOverbought = input.int(70, title="RSI Overbought Level", minval=50)
+rsiOversold = input.int(30, title="RSI Oversold Level", maxval=50)
+
+// Support and Resistance Settings
+srSource = input.source(close, title="Support/Resistance Source")
+srLookback = input.int(20, title="S/R Lookback Period", minval=1)
+srOffset = input.float(0.01, title="S/R Zone Offset (%)", minval=0.0)
+
+// Fibonacci Settings
+fibLookback = input.int(50, title="Fib Lookback Period", minval=10)
+
+// Pattern Recognition and Forecasting Settings
+patternLength = input.int(20, title="Pattern Length", minval=5, maxval=200)
+lookbackBars = input.int(2000, title="Lookback Bars", minval=50, maxval=10000)
+forecastBars = input.int(20, title="Forecast Bars", minval=1, maxval=200)
+patternLookback = input.int(10, title="Pattern Lookback Period", minval=5)
+
+// Volume Settings 
+volumeLookback = input.int(20, title="Volume Average Period", minval=1)
+volumeMultiplier = input.float(1.5, title="Volume Confirmation Multiplier", minval=1.0)
+dailyVolumeSource = input.string("1D", title="Volume Timeframe", options=["1D", "1W", "1M"])
+
+// ------------------- Indicator Calculations -------------------
+
+// Relative Strength Index (RSI)
+// The RSI is used to gauge the momentum of price changes and identify overbought/oversold conditions.
+rsiValue = ta.rsi(close, rsiLen)
+
+// Volume Calculation using request.security() for long-term data
+longTermVolume = request.security(syminfo.tickerid, dailyVolumeSource, volume)
+longTermAvgVolume = ta.sma(longTermVolume, volumeLookback)
+isHighVolume = volume > (longTermAvgVolume * volumeMultiplier)
+
+// ------------------- Support and Resistance (S/R) Logic -------------------
+// Simple S/R detection based on highest and lowest values over a lookback period.
+// This creates dynamic S/R zones that adapt to recent price action.
+supportLevel = ta.lowest(srSource, srLookback)
+resistanceLevel = ta.highest(srSource, srLookback)
+
+// Define price zones around S/R levels
+isNearSupport = (close <= supportLevel * (1 + srOffset))
+isNearResistance = (close >= resistanceLevel * (1 - srOffset))
+
+// ------------------- Fibonacci Retracement Logic -------------------
+// Find the recent swing high and swing low based on the user-defined lookback period.
+recentHigh = ta.highest(high, fibLookback)
+recentLow = ta.lowest(low, fibLookback)
+
+// Check if a valid price swing exists for retracement calculation.
+isUptrend = recentHigh > recentLow
+isDowntrend = recentLow < recentHigh
+
+// Calculate key Fibonacci retracement levels for both uptrends and downtrends.
+fib_382_uptrend = recentHigh - (recentHigh - recentLow) * 0.382
+fib_500_uptrend = recentHigh - (recentHigh - recentLow) * 0.5
+fib_618_uptrend = recentHigh - (recentHigh - recentLow) * 0.618
+
+fib_382_downtrend = recentLow + (recentHigh - recentLow) * 0.382
+fib_500_downtrend = recentLow + (recentHigh - recentLow) * 0.5
+fib_618_downtrend = recentLow + (recentHigh - recentLow) * 0.618
+
+// Determine if the current price is near a significant Fibonacci level.
+// A tolerance of 0.5% is used for this check.
+isNearFibUptrend = isUptrend and (math.abs(close - fib_382_uptrend) / fib_382_uptrend < 0.005 or math.abs(close - fib_500_uptrend) / fib_500_uptrend < 0.005 or math.abs(close - fib_618_uptrend) / fib_618_uptrend < 0.005)
+// Plot RSI in a separate pane
+plot(rsiValue, "RSI", color.new(color.blue, 0))
+hline(rsiOverbought, "RSI Overbought", color.new(color.red, 0))
+hline(rsiOversold, "RSI Oversold", color.new(color.green, 0))
+
+// Plot Support and Resistance lines on the main chart.
+plot(supportLevel, "Support", color.new(color.green, 0), style=plot.style_line, linewidth=2)
+plot(resistanceLevel, "Resistance", color.new(color.red, 0), style=plot.style_line, linewidth=2)
+
+// Plot Fibonacci levels
+plot(isUptrend ? fib_382_uptrend : na, "Fib 38.2% (Up)", color.new(color.blue, 50), style=plot.style_line)
+plot(isUptrend ? fib_500_uptrend : na, "Fib 50% (Up)", color.new(color.blue, 50), style=plot.style_line)
+plot(isUptrend ? fib_618_uptrend : na, "Fib 61.8% (Up)", color.new(color.blue, 50), style=plot.style_line)
+
+plot(isDowntrend ? fib_382_downtrend : na, "Fib 38.2% (Down)", color.new(color.orange, 50), style=plot.style_line)
+plot(isDowntrend ? fib_500_downtrend : na, "Fib 50% (Down)", color.new(color.orange, 50), style=plot.style_line)
+plot(isDowntrend ? fib_618_downtrend : na, "Fib 61.8% (Down)", color.new(color.orange, 50), style=plot.style_line)
+
+// Plot the forecast signals on the chart
+plotshape(bullishForecast, title="Bullish Forecast", location=location.belowbar, color=color.new(color.green, 0), style=shape.triangleup, size=size.small)
+plotshape(bearishForecast, title="Bearish Forecast", location=location.abovebar, color=color.new(color.red, 0), style=shape.triangledown, size=size.small)
+
+// Add a simple legend for the signals
+bgcolor(bullishForecast ? color.new(color.green, 90) : na)
+bgcolor(bearishForecast ? color.new(color.red, 90) : na)

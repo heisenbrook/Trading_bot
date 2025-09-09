@@ -41,7 +41,7 @@ def objective(trial, device, btcusdt):
     test_loader = DataLoader(test_data, params['batch_size'], shuffle=False)
     eval_loader = DataLoader(eval_data, params['batch_size'], shuffle=False)
 
-    model = FinanceTransf(num_features=len(full_data.feat_cols),
+    model = FinanceTransf(num_features=full_data.feat_cols_num,
                           n_targets=len(full_data.target_col),
                           n_layers=params['n_layers'],
                           d_model=params['d_model'],
@@ -75,17 +75,17 @@ def objective(trial, device, btcusdt):
 
     for epoch in range(params['n_epochs']):
         model.train()
-        train_loss = train_epoch_test(device, model, optimizer, criterion, train_loader)
-        test_loss = eval_epoch_test(device, model, criterion, test_loader)
+        train_loss = train_epoch_test(device, epoch, params['n_epochs'], model, optimizer, criterion, train_loader)
+        test_loss = eval_epoch_test(device, epoch, params['n_epochs'], model, criterion, test_loader)
     
         scheduler.step(test_loss)
 
         train_losses.append(train_loss)
         test_losses.append(test_loss)
 
-        # if (epoch + 1) % (params['n_epochs']//10) == 0 or (epoch + 1) == 1:
-        #     x = dt.now()
-        #     print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
+        if (epoch + 1) % (params['n_epochs']//10) == 0 or (epoch + 1) == 1:
+            x = dt.now()
+            print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
 
         if test_loss < best_test_loss:
             patience = 0
@@ -99,9 +99,9 @@ def objective(trial, device, btcusdt):
                 raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | MAE Open: ${m_open:.2f} | MAE Close: ${m_close:.2f} | Max Drawdown: ${max_drawdown:.2f}')
 
         if epoch >30 and patience > 30:
-            # x = dt.now()
-            # print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
-            # print('Early stop')
+            x = dt.now()
+            print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
+            print('Early stop')
             # print(f'max drawdown: {max_drawdown:.2f}')
             # print(f'MAE Open: ${m_open:.2f}')
             # print(f'MAE Close: ${m_close:.2f}')
@@ -109,9 +109,9 @@ def objective(trial, device, btcusdt):
 
     m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
     tot_loss = m_open + m_close + max_drawdown
-    # print(f'max drawdown: {max_drawdown:.2f}')
-    # print(f'MAE Open: ${m_open:.2f}')
-    # print(f'MAE Close: ${m_close:.2f}')
+    print(f'max drawdown: {max_drawdown:.2f}')
+    print(f'MAE Open: ${m_open:.2f}')
+    print(f'MAE Close: ${m_close:.2f}')
     
     return tot_loss
 
@@ -197,7 +197,11 @@ def optim_testing(device, model, loader, full_data, epoch, n_epochs):
     all_preds, all_targets, all_time = [], [], []
 
     with torch.no_grad():
-        for data, label, time in loader:
+        for data, label, time in tqdm(loader,
+                           desc=f'Epoch {epoch +1}/{n_epochs} | Eval Test',
+                           total= len(loader),
+                           leave=False,
+                           ncols=80):
             data = data.to(device)
             preds = model(data) 
             all_preds.append(preds.cpu().numpy())

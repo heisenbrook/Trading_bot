@@ -37,10 +37,14 @@ def train_epoch(device, epoch, n_epochs, model, optimizer, criterion, loader):
     
     return tot_loss/len(loader)
 
-def train_epoch_test(device, model, optimizer, criterion, loader):
+def train_epoch_test(device, epoch, n_epochs, model, optimizer, criterion, loader):
     model.train()
     tot_loss = 0
-    for data, label, _ in loader:
+    for data, label, _ in tqdm(loader,
+                           desc=f'Epoch {epoch +1}/{n_epochs} | Batch Train',
+                           total= len(loader),
+                           leave=False,
+                           ncols=80):
         data, label = data.to(device), label.to(device)
 
         optimizer.zero_grad()
@@ -71,11 +75,15 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
     
     return tot_loss/len(loader)
 
-def eval_epoch_test(device, model, criterion, loader):
+def eval_epoch_test(device, epoch, n_epochs, model, criterion, loader):
     model.eval()
     tot_loss = 0
     with torch.no_grad():
-        for data, label, _ in loader:
+        for data, label, _ in tqdm(loader,
+                           desc=f'Epoch {epoch +1}/{n_epochs} | Batch Test',
+                           total= len(loader),
+                           leave=False,
+                           ncols=80):
             data, label = data.to(device), label.to(device)
             out = model(data)
             loss = criterion(out, label)

@@ -29,7 +29,7 @@ study = optuna.create_study(direction='minimize',
                             study_name='BTC_Transf',
                             load_if_exists=True)
 
-study.optimize(lambda trial: objective(trial, device, btcusdt), n_trials=200, show_progress_bar=True)
+study.optimize(lambda trial: objective(trial, device, btcusdt), n_trials=200)
 
 best_params = study.best_params
 best_value = study.best_value
