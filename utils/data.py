@@ -29,7 +29,7 @@ class BTCDataset(Dataset):
         
         self.prices_col = ['high', 'low', 'open', 'close']
         self.bands_col = ['power_law_lower', 'power_law_upper', 'power_law_bands_lower', 'power_law_bands_upper']
-        self.indicators_col = ['RSI','bbands_upper','bbands_middle','bbands_lower','sma_close','ema_close','sstar', 'power_law', 'dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance']
+        self.indicators_col = ['RSI','power_law', 'dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance']
         self.volume_col = ['volume']
         self.feat_cols = self.data.columns.to_list()
         self.feat_cols_num = [len(self.prices_col), len(self.volume_col), len(self.indicators_col), len(self.bands_col)]
@@ -97,10 +97,6 @@ def preprocess(data):
     data.drop('symbol', axis=1, inplace=True)
 
     data['RSI'] = talib.RSI(data['close'], timeperiod=14)
-    data['bbands_upper'], data['bbands_middle'], data['bbands_lower'] = talib.BBANDS(data['close'], timeperiod=20)
-    data['sma_close'] = talib.SMA(data['close'], timeperiod=50)
-    data['ema_close'] = talib.EMA(data['close'], timeperiod=50)
-    data['sstar'] = talib.CDLSHOOTINGSTAR(data['open'], data['high'], data['low'], data['close'])
     data['power_law'] = fit_power_law(data['close'])
     data['power_law_lower'] = data['power_law'] * 0.5
     data['power_law_upper'] = data['power_law'] * 2.0
@@ -120,7 +116,7 @@ def create_labels(data, horizon):
     """
     label = data.shift(-horizon)
     label.iloc[:-horizon]
-    label.drop(['RSI','bbands_upper','bbands_middle','bbands_lower','sma_close','ema_close','sstar','power_law','power_law_lower','power_law_upper','power_law_bands_lower','power_law_bands_upper','volume','dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance'], axis=1, inplace=True)
+    label.drop(['RSI','power_law','power_law_lower','power_law_upper','power_law_bands_lower','power_law_bands_upper','volume','dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance'], axis=1, inplace=True)
     label = label.rename({'high':'next_high','low':'next_low','open':'next_open','close':'next_close'}, axis='columns')
 
     return label
