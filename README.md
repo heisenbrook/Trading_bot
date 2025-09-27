@@ -14,11 +14,12 @@ An AI-based trading bot implementation for algorithmic trading strategies.
 ## Note
 
 This project appears to be a work in progress for educational purposes. The code structure suggests it's designed for learning and experimenting with algorithmic trading concepts.
-*Predictor function in development, coming soon!*
+
+**Predictor function in development, coming soon!**
 
 ## Disclaimer
 
-*This is educational software for algorithmic trading research*. Use at your own risk. Cryptocurrency and stock trading involve substantial financial risk. Always test strategies thoroughly before live trading.
+**This is educational software for algorithmic trading research**. Use at your own risk. Cryptocurrency and stock trading involve substantial financial risk. Always test strategies thoroughly before live trading.
 
 ## Contributing
 
