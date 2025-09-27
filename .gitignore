@@ -1,5 +1,5 @@
 __pycache__
 __init__.py
 keys.py
-pinescripts/
+utils/pinescripts/
 pinescripts/forecaster.pine
