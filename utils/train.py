@@ -1,4 +1,6 @@
 import plotly.express as px
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 import pandas as pd
 import torch
 import os
@@ -8,14 +10,61 @@ from tqdm import tqdm
 
 scaler = torch.amp.GradScaler()
 
+#============================================
+# Plotting functions 
+#============================================
+
+def plot_bar(targets, preds):
+    """
+    Plots real vs predicted candles and saves the figure.
+    """
+
+    fig = make_subplots(rows=1, cols=2, column_titles=['Real candles','Predicted candles'])
+
+    fig.add_trace(go.Candlestick(x = targets.index,
+                                         high= targets['next_high'],
+                                         low= targets['next_low'],
+                                         open= targets['next_open'],
+                                         close= targets['next_close']),
+                                         row=1, col=1)
+
+    fig.add_trace(go.Candlestick(x = preds.index,
+                                         high= preds['next_high'],
+                                         low= preds['next_low'],
+                                         open= preds['next_open'],
+                                         close= preds['next_close']),
+                                         row=1, col=2)
+    
+    fig.update_layout(height=600, 
+                      width=1200,
+                      title='Real vs predictions',
+                      xaxis1=dict(rangeslider=dict(visible=False)),
+                      xaxis2=dict(rangeslider=dict(visible=False)))
+    
+
+    fig.write_image(os.path.join(data_folder,'Pred_vs_real_candles.png'))
+
 def plot_loss(train_losses, test_losses):
+    """
+    Plots training and test loss over epochs and saves the figure.
+    """
+
     df = pd.DataFrame(dict(train_loss=train_losses, test_loss=test_losses))
     fig = px.line(df, labels={'index': 'Epochs', 'value': 'Loss'},
                   title='Training and Test Loss Over Epochs')
     fig.update_layout(xaxis_title='Epochs', yaxis_title='Loss') 
     fig.write_image(os.path.join(data_folder, 'Training_loss.png'))
 
+
+#============================================
+# Training and evaluation functions
+#============================================
+
 def train_epoch(device, epoch, n_epochs, model, optimizer, criterion, loader):
+    """
+    Train the model for one epoch.
+    """
+
     model.train()
     tot_loss = 0
     for data, label, _ in tqdm(loader,
@@ -37,29 +86,12 @@ def train_epoch(device, epoch, n_epochs, model, optimizer, criterion, loader):
     
     return tot_loss/len(loader)
 
-def train_epoch_test(device, epoch, n_epochs, model, optimizer, criterion, loader):
-    model.train()
-    tot_loss = 0
-    for data, label, _ in tqdm(loader,
-                           desc=f'Epoch {epoch +1}/{n_epochs} | Batch Train',
-                           total= len(loader),
-                           leave=False,
-                           ncols=80):
-        data, label = data.to(device), label.to(device)
-
-        optimizer.zero_grad()
-        with torch.autocast(device_type='cuda'):
-            out = model(data)
-            loss = criterion(out, label)
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
-
-        tot_loss += loss.item()
-    
-    return tot_loss/len(loader)
 
 def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
+    """ 
+    Evaluate the model on the validation/test set.
+    """
+
     model.eval()
     tot_loss = 0
     with torch.no_grad():
@@ -75,25 +107,16 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
     
     return tot_loss/len(loader)
 
-def eval_epoch_test(device, epoch, n_epochs, model, criterion, loader):
-    model.eval()
-    tot_loss = 0
-    with torch.no_grad():
-        for data, label, _ in tqdm(loader,
-                           desc=f'Epoch {epoch +1}/{n_epochs} | Batch Test',
-                           total= len(loader),
-                           leave=False,
-                           ncols=80):
-            data, label = data.to(device), label.to(device)
-            out = model(data)
-            loss = criterion(out, label)
-            tot_loss += loss.item()
-    
-    return tot_loss/len(loader)
 
-# main training function
+#============================================
+# Main training function
+#============================================
 
 def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_loader, test_loader):
+    """         
+    Main training loop with early stopping and model saving.
+    """
+    
     best_test_loss = float('inf')
 
     train_losses, test_losses = [], []

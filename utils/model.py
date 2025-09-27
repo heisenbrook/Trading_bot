@@ -4,6 +4,11 @@ import numpy as np
 
 
 class PosEnc(nn.Module):
+    """
+    Positional Encoding module. 
+    Injects information about the relative or absolute position of the tokens in the sequence.
+    Source: https://arxiv.org/abs/1706.03762
+    """
     def __init__(self, d_model, win_size):
         super().__init__()
         pos = torch.arange(0, win_size, dtype=torch.float).unsqueeze(1)
@@ -19,25 +24,13 @@ class PosEnc(nn.Module):
     def forward(self, x):
         return x + self.pe[:, :x.size(1),:]
 
-class FeatureAwareEmbedding(nn.Module):
-    def __init__(self, d_model, num_features):
-        super().__init__()
-        self.d_model = d_model
-        self.num_features = num_features
-
-        self.feat_proj = nn.Linear(num_features, d_model)
-        self.layer_norm = nn.LayerNorm(d_model)
-        self.dropout = nn.Dropout(0.1)
-
-    def forward(self, x):
-
-        x = self.feat_proj(x)
-        x = self.layer_norm(x)
-        x = self.dropout(x)
-
-        return x
     
 class FeatAwareEmb(nn.Module):
+    """
+    Feature-Aware Embedding module.
+    Embeds each feature group into a common d_model dimensional space and applies attention weights to each group.
+    Source: Adapted from https://arxiv.org/abs/2106.05208
+    """
     def __init__(self, d_model, features_dims):
         super().__init__()
         self.d_model = d_model
@@ -74,6 +67,10 @@ class FeatAwareEmb(nn.Module):
     
 
 class FinanceTransf(nn.Module):
+    """
+    Transformer model for financial time series forecasting.
+    Combines feature-aware embedding, positional encoding, and a standard Transformer encoder.
+    """
     def __init__(self, 
                  num_features, 
                  n_targets, 
@@ -121,6 +118,10 @@ class FinanceTransf(nn.Module):
     
 
 class DirectionalAccuracyLoss(nn.Module):
+    """
+    Custom loss function that combines Mean Squared Error (MSE) with Directional Accuracy.
+    The loss is a weighted sum of MSE and the proportion of correct directional predictions.    
+    """
     def __init__(self, alpha):
         super().__init__()
         self.alpha = alpha

@@ -6,15 +6,22 @@ from optuna import TrialPruned
 from tqdm import tqdm
 from utils.data import BTCDataset
 from utils.keys import data_folder, generator
-from utils.train import train_epoch_test, eval_epoch_test
+from utils.train import train_epoch, eval_epoch, plot_bar
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
 import numpy as np
 from sklearn.metrics import mean_absolute_error
 
+#==================================================
+# Hyperparameter optimization and metrics functions
+#==================================================
+
 
 def objective(trial, device, btcusdt):
+    """
+    Objective function for hyperparameter optimization using Optuna.
+    It defines the model architecture, training process, and evaluation metrics.
+    Similar to the main training loop but adapted for hyperparameter tuning.
+    """
 
     params = {
         'n_layers': trial.suggest_int('n_layers', 1, 4),
@@ -75,8 +82,8 @@ def objective(trial, device, btcusdt):
 
     for epoch in range(params['n_epochs']):
         model.train()
-        train_loss = train_epoch_test(device, epoch, params['n_epochs'], model, optimizer, criterion, train_loader)
-        test_loss = eval_epoch_test(device, epoch, params['n_epochs'], model, criterion, test_loader)
+        train_loss = train_epoch(device, epoch, params['n_epochs'], model, optimizer, criterion, train_loader)
+        test_loss = eval_epoch(device, epoch, params['n_epochs'], model, criterion, test_loader)
     
         scheduler.step(test_loss)
 
@@ -102,9 +109,6 @@ def objective(trial, device, btcusdt):
             x = dt.now()
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
-            # print(f'max drawdown: {max_drawdown:.2f}')
-            # print(f'MAE Open: ${m_open:.2f}')
-            # print(f'MAE Close: ${m_close:.2f}')
             break
 
     m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
@@ -115,10 +119,11 @@ def objective(trial, device, btcusdt):
     
     return tot_loss
 
-        
-
 
 def metrics(targets, preds):
+    """
+    Calculate evaluation metrics: Mean Absolute Error for open and close prices, and maximum drawdown.
+    """
 
     mae_open = mean_absolute_error(targets['next_open'], preds['next_open'])
     mae_close = mean_absolute_error(targets['next_close'], preds['next_close'])
@@ -126,36 +131,17 @@ def metrics(targets, preds):
 
     return mae_open, mae_close, max_drawdown
 
-def plot_bar(targets, preds):
 
-    fig = make_subplots(rows=1, cols=2, column_titles=['Real candles','Predicted candles'])
-
-    fig.add_trace(go.Candlestick(x = targets.index,
-                                         high= targets['next_high'],
-                                         low= targets['next_low'],
-                                         open= targets['next_open'],
-                                         close= targets['next_close']),
-                                         row=1, col=1)
-
-    fig.add_trace(go.Candlestick(x = preds.index,
-                                         high= preds['next_high'],
-                                         low= preds['next_low'],
-                                         open= preds['next_open'],
-                                         close= preds['next_close']),
-                                         row=1, col=2)
-    
-    fig.update_layout(height=600, 
-                      width=1200,
-                      title='Real vs predictions',
-                      xaxis1=dict(rangeslider=dict(visible=False)),
-                      xaxis2=dict(rangeslider=dict(visible=False)))
-    
-
-    fig.write_image(os.path.join(data_folder,'Pred_vs_real_candles.png'))
-   
+#============================================
+# Testing functions
+#============================================   
 
 
 def testing(device, model, loader, full_data):
+    """
+    Evaluate the model on the evaluation dataset and return evaluation metrics.       
+    """
+
     model.eval()
     all_preds, all_targets, all_time = [], [], []
 
@@ -193,6 +179,10 @@ def testing(device, model, loader, full_data):
 
 
 def optim_testing(device, model, loader, full_data, epoch, n_epochs):
+    """
+    Evaluate the model during hyperparameter optimization and return evaluation metrics.       
+    """
+    
     model.eval()
     all_preds, all_targets, all_time = [], [], []
 

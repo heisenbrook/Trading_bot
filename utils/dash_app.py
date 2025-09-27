@@ -7,6 +7,12 @@ import os
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 
+#============================================
+# Dash app for visualizing real vs predicted candlesticks
+#============================================
+
+# Initialize Dash app
+
 app = Dash(__name__)
 app.title = "Prediction vs real candles"
 
@@ -14,6 +20,7 @@ csv_files = [f for f in os.listdir(data_folder) if f.endswith('.csv')]
 csv_names = [os.path.splitext(f)[0] for f in csv_files]
 csv = dict(zip(csv_names, csv_files))
 
+# Define app layout
 
 app.layout = html.Div([
     html.H1('BTCUSDT Candlestick Chart 4h', style={'textAlign': 'center'}),
@@ -23,6 +30,8 @@ app.layout = html.Div([
     ),
     dcc.Graph(id='candlestick-graph')
 ])
+
+# Define callback to update graph based on selected CSV files
 
 @app.callback(
     Output('candlestick-graph', 'figure'),
