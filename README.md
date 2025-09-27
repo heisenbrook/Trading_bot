@@ -14,6 +14,7 @@ An AI-based trading bot implementation for algorithmic trading strategies.
 ## Note
 
 This project appears to be a work in progress for educational purposes. The code structure suggests it's designed for learning and experimenting with algorithmic trading concepts.
+*Predictor function in development, coming soon!*
 
 ## Disclaimer
 
