@@ -1,5 +1,7 @@
 # Trading_bot
 
+## Overview
+
 An AI-based trading bot implementation for algorithmic trading strategies.
 
 ## Files Structure
