@@ -29,17 +29,18 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
                       interval=Interval.in_4_hour, 
                       n_bars=10000,
                       extended_session=True)
-# Preprocess data
 
-btcusdt = preprocess(btcusdt)
 
 # Load best hyperparameters and prepare datasets
+# Preprocess data
 # Divide data into train, test and evaluation sets
 # Create DataLoaders for each set
 # Initialize model, weights, loss function, optimizer and learning rate scheduler
 
 with open(os.path.join(data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
+
+btcusdt = preprocess(best_params['horizon'], btcusdt)
 
 full_data = BTCDataset(btcusdt,
                        win_size=best_params['win_size'], 
@@ -48,9 +49,9 @@ full_data = BTCDataset(btcusdt,
 train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1], generator=generator)
 
 batch_size = best_params['batch_size']
-train_loader = DataLoader(train_data, batch_size, shuffle=False)
-test_loader = DataLoader(test_data, batch_size, shuffle=False)
-eval_loader = DataLoader(eval_data, batch_size, shuffle=False)
+train_loader = DataLoader(train_data, batch_size, num_workers=4, pin_memory=True, shuffle=False)
+test_loader = DataLoader(test_data, batch_size, num_workers=4, pin_memory=True, shuffle=False)
+eval_loader = DataLoader(eval_data, batch_size, num_workers=4, pin_memory=True, shuffle=False)
 
 lr = best_params['lr']
 alpha = best_params['alpha']

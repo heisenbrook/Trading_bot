@@ -4,7 +4,7 @@ from datetime import datetime as dt
 import os
 from optuna import TrialPruned
 from tqdm import tqdm
-from utils.data import BTCDataset
+from utils.data import BTCDataset, preprocess
 from utils.keys import data_folder, generator
 from utils.train import train_epoch, eval_epoch, plot_bar
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
@@ -39,8 +39,12 @@ def objective(trial, device, btcusdt):
         'optim': trial.suggest_categorical('optim', ['adam', 'sgd'])
     }
 
+    btcusdt = preprocess(params['horizon'], btcusdt)
 
-    full_data = BTCDataset(btcusdt, params['win_size'], params['horizon'])
+
+    full_data = BTCDataset(btcusdt, 
+                           win_size=params['win_size'], 
+                           horizon=params['horizon'])
 
     train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1], generator=generator)
 
@@ -113,7 +117,7 @@ def objective(trial, device, btcusdt):
 
     m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
     tot_loss = m_open + m_close + max_drawdown
-    print(f'max drawdown: {max_drawdown:.2f}')
+    print(f'max drawdown: ${max_drawdown:.2f}')
     print(f'MAE Open: ${m_open:.2f}')
     print(f'MAE Close: ${m_close:.2f}')
     

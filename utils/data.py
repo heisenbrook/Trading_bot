@@ -18,22 +18,24 @@ class BTCDataset(Dataset):
     It handles feature engineering, normalization, and sequence generation for time series forecasting.  
     It also provides a method for denormalizing predictions back to the original scale.   
     """
-    def __init__(self, features, win_size, horizon):
+    def __init__(self, features, win_size, horizon, is_training=True):
 
         self.win_size = win_size
         self.horizon = horizon
+        self.data = features
+        self.is_training = is_training
 
-        labels = create_labels(features, self.horizon)
+        if isinstance(self.data, pd.Series):
+            self.data = self.data.to_frame()
 
-        self.data = features.join(labels)
-        
         self.prices_col = ['high', 'low', 'open', 'close']
-        self.bands_col = ['power_law_lower', 'power_law_upper', 'power_law_bands_lower', 'power_law_bands_upper']
-        self.indicators_col = ['RSI','power_law', 'dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance']
-        self.volume_col = ['volume']
+        self.momentum_col = ['RSI', 'MOM', 'MACD', 'MACD_SIGNAL', 'MACD_HIST', 'ADX', 'ROC']
+        self.bands_col = ['BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP']
+        self.patterns_col = ['dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance']
+        self.volume_col = ['volume', 'OBV']
         self.feat_cols = self.data.columns.to_list()
-        self.feat_cols_num = [len(self.prices_col), len(self.volume_col), len(self.indicators_col), len(self.bands_col)]
-        self.target_col = labels.columns.to_list()
+        self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.bands_col), len(self.patterns_col), len(self.volume_col)]
+        self.target_col = ['next_high', 'next_low', 'next_open', 'next_close']
         self.timestamps = self.data.index.values
         self.time_index = np.arange(len(self.data))
 
@@ -41,29 +43,41 @@ class BTCDataset(Dataset):
             transformers=[
                 ('prices', Pipeline([
                          ('robust', RobustScaler()),
-                         ('power', PowerTransformer())
+                         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
                 ]), self.prices_col),
-                ('volume', PowerTransformer(), self.volume_col),
-                ('indicators', StandardScaler(), self.indicators_col),
+                ('volume', Pipeline([
+                         ('robust', RobustScaler()),
+                         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
+                ]), self.volume_col),
+                ('momentum', StandardScaler(), self.momentum_col),
+                ('patterns', StandardScaler(), self.patterns_col),
                 ('bands', MinMaxScaler(), self.bands_col),
                 ('targets', Pipeline([
                          ('robust', RobustScaler()),
-                         ('power', PowerTransformer())
+                         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
                 ]), self.target_col)
             ],
             remainder='passthrough'
         )
-
-        self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
-        self.data.ffill(inplace=True)
+        
+        if self.is_training:
+            self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
+            self.data = self.data.ffill()
 
     def __len__(self):
-        return len(self.data) - self.win_size - self.horizon + 1
+        return max(0, len(self.data) - self.win_size - self.horizon + 1)
 
     def __getitem__(self, i):
-        x = self.data[self.feat_cols].values[i:i+self.win_size]
-        y = self.data[self.target_col].values[i+self.win_size:i+self.win_size + self.horizon]
-        last_time_index = self.time_index[i+self.win_size:i+self.win_size+self.horizon]
+        if self.is_training:
+            x = self.data[self.feat_cols].values[i:i+self.win_size]
+            y = self.data[self.target_col].values[i+self.win_size:i+self.win_size + self.horizon]
+            last_time_index = i + self.win_size + self.horizon -1
+        else:
+            x = self.preprocessor.fit_transform(self.data[self.feat_cols].iloc[i:i+self.win_size])
+            y = self.preprocessor.named_transformers_['targets'].transform(
+                self.data[self.target_col].iloc[i+self.win_size:i+self.win_size + self.horizon]
+            )
+            last_time_index = i + self.win_size + self.horizon -1
 
         return torch.FloatTensor(x), torch.FloatTensor(y), last_time_index    
     
@@ -71,8 +85,11 @@ class BTCDataset(Dataset):
         if isinstance(y, torch.Tensor):
             y = y.detach().cpu().numpy()
         
-        dummy = np.zeros((len(y), len(self.prices_col)))
-        dummy[:, -len(self.target_col):] = y
+        num_targets = len(self.target_col)
+        y_flat = y.reshape(-1, num_targets)
+        
+        dummy = np.zeros((y_flat.shape[0], len(self.prices_col)))
+        dummy[:, -num_targets:] = y_flat
         
         transf = self.preprocessor.named_transformers_['targets']
 
@@ -80,8 +97,18 @@ class BTCDataset(Dataset):
             for _, step in reversed(transf.steps):
                 if hasattr(step, 'inverse_transform'):
                     dummy = step.inverse_transform(dummy)
+        
+        if isinstance(last_time_index, (list, np.ndarray)):
+            all_dates = []
+            for ts_idx in last_time_index:
+                current_start_timestamp = self.timestamps[ts_idx]
+                all_dates.append(pd.Series(pd.date_range(start=current_start_timestamp, periods=self.horizon, freq='4h')))
+            dates = pd.concat(all_dates)
+        else:
+            start_timestamp = self.timestamps[last_time_index]
+            dates = pd.date_range(start=start_timestamp, periods=self.horizon, freq='4h')
 
-        df = pd.DataFrame(dummy, columns=self.target_col, index=self.timestamps[last_time_index])
+        df = pd.DataFrame(dummy, columns=self.target_col, index=dates)
 
         return df
 
@@ -89,35 +116,58 @@ class BTCDataset(Dataset):
 # Preprocessing functions
 # =============================================
 
-def preprocess(data):
+def preprocess(horizon, data=pd.DataFrame()):
     """
     Main preprocessing function to prepare raw historical data for modeling.
     It computes technical indicators, fits power law trends, and adds support/resistance features.
     """
     data.drop('symbol', axis=1, inplace=True)
 
+    # Indicator calculations
+    # =============================
+
+    # Momentum indicators
     data['RSI'] = talib.RSI(data['close'], timeperiod=14)
-    data['power_law'] = fit_power_law(data['close'])
-    data['power_law_lower'] = data['power_law'] * 0.5
-    data['power_law_upper'] = data['power_law'] * 2.0
-    data['power_law_bands_lower'], data['power_law_bands_upper'] = powerlaw_bands(data['power_law'], data['close'])
+    data['MOM'] = talib.MOM(data['close'], timeperiod=10)
+    data['MACD'], data['MACD_SIGNAL'], data['MACD_HIST'] = talib.MACD(data['close'], fastperiod=12, slowperiod=26, signalperiod=9)
+    data['ADX'] = talib.ADX(data['high'], data['low'], data['close'], timeperiod=14)
+    data['ROC'] = talib.ROC(data['close'], timeperiod=10)
+
+    # Overlap indicators
+    data['BBANDS_UPPER'], data['BBANDS_MIDDLE'], data['BBANDS_LOWER'] = talib.BBANDS(data['close'], timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+    data['SMA_50'] = talib.SMA(data['close'], timeperiod=50)
+    data['PLAW'] = fit_power_law(data['close'])
+    data['PLAW_BANDS_LOW'], data['PLAW_BANDS_UP'] = powerlaw_bands(data['PLAW'], data['close'])
+
+    # Pattern recognition indicators
     data = add_res_support_features(data, 14)
 
-    data = data.iloc[15:]
+    # Volume indicators
+    data['OBV'] = talib.OBV(data['close'], data['volume'])
+
+    # Create future price labels
+    labels = create_labels(horizon, data)
+    data = data.join(labels)
+
+    # Remove rows with NaN values
+    data = data.dropna()
 
     return data
 
 
-def create_labels(data, horizon):
+def create_labels(horizon, data=pd.DataFrame()):
     """
     Create future price labels for time series forecasting.
     The function shifts the price columns by the specified horizon to create labels for the next time steps.
     It also removes unnecessary columns to focus on the target variables.
     """
-    label = data.shift(-horizon)
-    label.iloc[:-horizon]
-    label.drop(['RSI','power_law','power_law_lower','power_law_upper','power_law_bands_lower','power_law_bands_upper','volume','dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance'], axis=1, inplace=True)
-    label = label.rename({'high':'next_high','low':'next_low','open':'next_open','close':'next_close'}, axis='columns')
+    label = data.shift(horizon)
+    label = label.iloc[horizon:]
+    label.drop(columns=['volume', 'RSI', 'MOM', 'MACD', 'MACD_SIGNAL','MACD_HIST', 'ADX', 'ROC',
+                        'BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP',
+                        'dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance',
+                        'OBV'], axis=1, inplace=True)
+    label = label.rename({'open':'next_open', 'high':'next_high', 'close':'next_close', 'low':'next_low'}, axis='columns')
 
     return label
 

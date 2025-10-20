@@ -113,8 +113,9 @@ class FinanceTransf(nn.Module):
         x = self.pe(x)
         x = self.transformer(x)
         x = x[:, -self.horizon:, :]
+        x = self.out(x)
 
-        return self.out(x)
+        return x
     
 
 class DirectionalAccuracyLoss(nn.Module):

@@ -26,10 +26,6 @@ btcusdt  = tv.get_hist(symbol='BTCUSDT',
                       n_bars=10000,
                       extended_session=True)
 
-# Preprocess data
-
-btcusdt = preprocess(btcusdt)
-
 # Set up Optuna study
 
 pruner = MedianPruner(n_startup_trials=5, n_warmup_steps=15, interval_steps=5)
