@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import torch
 import os
-from utils.keys import data_folder
+from utils.keys import train_data_folder
 from datetime import datetime as dt
 from tqdm import tqdm
 
@@ -42,7 +42,7 @@ def plot_bar(targets, preds):
                       xaxis2=dict(rangeslider=dict(visible=False)))
     
 
-    fig.write_image(os.path.join(data_folder,'Pred_vs_real_candles.png'))
+    fig.write_image(os.path.join(train_data_folder,'Pred_vs_real_candles.png'))
 
 def plot_loss(train_losses, test_losses):
     """
@@ -53,7 +53,7 @@ def plot_loss(train_losses, test_losses):
     fig = px.line(df, labels={'index': 'Epochs', 'value': 'Loss'},
                   title='Training and Test Loss Over Epochs')
     fig.update_layout(xaxis_title='Epochs', yaxis_title='Loss') 
-    fig.write_image(os.path.join(data_folder, 'Training_loss.png'))
+    fig.write_image(os.path.join(train_data_folder, 'Training_loss.png'))
 
 
 #============================================
@@ -139,7 +139,7 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             patience = 0
             best_test_loss = test_loss
             saved_model = torch.jit.script(model)
-            saved_model.save(os.path.join(data_folder,'td_best_model.pt'))
+            saved_model.save(os.path.join(train_data_folder,'td_best_model.pt'))
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
 

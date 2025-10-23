@@ -1,17 +1,71 @@
 from tvDatafeed import TvDatafeed, Interval
+import plotly.graph_objects as go
 import numpy as np
 import torch
 import os
 import json
-from utils.keys import user, psw, data_folder, generator
+from utils.keys import user, psw, data_folder, train_data_folder
 from utils.data import BTCDataset, preprocess
 
 
-model = torch.jit.load(os.path.join(data_folder,'td_best_model.pt'))
+def make_predictions(data_loader):
+    """
+    Makes predictions using the trained model and returns a DataFrame with denormalized predictions."""
+    all_preds = []
+    all_time = []
+    with torch.no_grad():
+        for data, _, ts in data_loader:
+            preds = model(data) 
+            all_preds.append(preds)
+            all_time.append(ts)
+
+    all_preds = np.concatenate(all_preds, axis=0)
+    all_time = np.concatenate(all_time, axis=0)
+
+    all_preds = all_preds.reshape(-1,4)
+    all_time = all_time.reshape(-1)
+
+    df = processed_data.denorm_pred(all_preds, all_time)
+
+    return df
+
+def plot_predictions(btcusdt, preds_df):
+    """
+    Plots the newly predicted candles on the current data.
+    """
+    fig = go.Figure()
+
+    fig.add_trace(go.Candlestick(x = btcusdt.index,
+                                         high= btcusdt['high'],
+                                         low= btcusdt['low'],
+                                         open= btcusdt['open'],
+                                         close= btcusdt['close'],
+                                         name='Historical candles'))
+
+    fig.add_trace(go.Candlestick(x = preds_df.index,
+                                         high= preds_df['next_high'],
+                                         low= preds_df['next_low'],
+                                         open= preds_df['next_open'],
+                                         close= preds_df['next_close'],
+                                         name='Predicted candles',
+                                         increasing_line_color='cyan',
+                                         decreasing_line_color='gray'))
+    
+    fig.update_layout(height=600, 
+                      width=800,
+                      title='Predicted candles',
+                      xaxis1=dict(rangeslider=dict(visible=False)))
+    
+    fig.write_image(os.path.join(data_folder,'New_predicted_candles.png'))
+
+
+
+
+model = torch.jit.load(os.path.join(train_data_folder,'td_best_model.pt'))
 model.to('cpu')
 model.eval()
 
-with open(os.path.join(data_folder, 'best_params.json'), 'r') as f:
+with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
 
 
@@ -35,25 +89,8 @@ processed_data = BTCDataset(btcusdt,
 
 data_loader = torch.utils.data.DataLoader(processed_data)
 
-def make_predictions(data_loader):
-    all_preds = []
-    all_time = []
-    with torch.no_grad():
-        for data, _, ts in data_loader:
-            preds = model(data) 
-            all_preds.append(preds)
-            all_time.append(ts)
-
-    all_preds = np.concatenate(all_preds, axis=0)
-    all_time = np.concatenate(all_time, axis=0)
-
-    all_preds = all_preds.reshape(-1,4)
-    all_time = all_time.reshape(-1)
-
-    df = processed_data.denorm_pred(all_preds, all_time)
-
-    return df
 
 pred_df = make_predictions(data_loader)
+plot_predictions(btcusdt.iloc[-18:], pred_df)
 pred_df.to_csv(os.path.join(data_folder, 'predictions.csv'))
 print(f'Predictions saved to {os.path.join(data_folder, "predictions.csv")}')

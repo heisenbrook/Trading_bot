@@ -5,7 +5,7 @@ import os
 from optuna import TrialPruned
 from tqdm import tqdm
 from utils.data import BTCDataset, preprocess
-from utils.keys import data_folder, generator
+from utils.keys import train_data_folder, generator
 from utils.train import train_epoch, eval_epoch, plot_bar
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
 import numpy as np
@@ -172,8 +172,8 @@ def testing(device, model, loader, full_data):
     preds_real = full_data.denorm_pred(all_preds, all_time)
     targets_real = full_data.denorm_pred(all_targets, all_time)
 
-    preds_real.sort_index().to_csv(os.path.join(data_folder,'preds_real.csv'))
-    targets_real.sort_index().to_csv(os.path.join(data_folder,'targets_real.csv'))
+    preds_real.sort_index().to_csv(os.path.join(train_data_folder,'preds_real.csv'))
+    targets_real.sort_index().to_csv(os.path.join(train_data_folder,'targets_real.csv'))
 
     plot_bar(targets_real, preds_real)
 

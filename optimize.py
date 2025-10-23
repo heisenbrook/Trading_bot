@@ -4,8 +4,7 @@ import os
 import torch
 import optuna
 from optuna.pruners import MedianPruner
-from utils.keys import user, psw, data_folder
-from utils.data import preprocess
+from utils.keys import user, psw, train_data_folder
 from utils.testing import objective
 
 #============================================
@@ -49,7 +48,7 @@ print(f'Best params: {best_params}')
 
 # Save the best parameters to a JSON file
 
-with open(os.path.join(data_folder, 'best_params.json'), 'w') as f:
+with open(os.path.join(train_data_folder, 'best_params.json'), 'w') as f:
     json.dump(best_params, f, indent=4)
 
 

@@ -6,16 +6,17 @@ An AI-based trading bot implementation for algorithmic trading strategies.
 
 ## Files Structure
 
-- `main.py` - Main trading bot implementation - performs a full training cicle using the best parameters in `data/best_params.json` and records final results in the other files also in `data/`
+- `main.py` - Main trading bot implementation - performs a full training cicle using the best parameters in `data/train_data/best_params.json` and records final results in the same folder
 - `optimize.py` - Optimization script
-- `data/` - Data folder
+- `predictions.py` - Script for inference - outputs all the files in `data/`
+- `data/` - Data folder containing `data/train_data` sub-folder
 - `utils/` - Utility functions and helpers
 
 ## Note
 
 This project appears to be a work in progress for educational purposes. The code structure suggests it's designed for learning and experimenting with algorithmic trading concepts.
 
-**Predictor function in development, coming soon!**
+**Predictions function in development, coming soon!**
 
 ## Disclaimer
 
