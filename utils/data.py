@@ -35,7 +35,7 @@ class BTCDataset(Dataset):
         self.volume_col = ['volume', 'OBV']
         self.feat_cols = self.data.columns.to_list()
         self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.bands_col), len(self.patterns_col), len(self.volume_col)]
-        self.target_col = ['next_open', 'next_high', 'next_low', 'next_close']
+        self.target_col = ['next_close']
         self.timestamps = self.data.index.values
         self.time_index = np.arange(len(self.data))
 
@@ -88,15 +88,13 @@ class BTCDataset(Dataset):
         num_targets = len(self.target_col)
         y_flat = y.reshape(-1, num_targets)
         
-        dummy = np.zeros((y_flat.shape[0], len(self.prices_col)))
-        dummy[:, -num_targets:] = y_flat
         
         transf = self.preprocessor.named_transformers_['targets']
 
         if isinstance(transf, Pipeline):
             for _, step in reversed(transf.steps):
                 if hasattr(step, 'inverse_transform'):
-                    dummy = step.inverse_transform(dummy)
+                    y_flat = step.inverse_transform(y_flat)
         
         if isinstance(last_time_index, (list, np.ndarray)):
             all_dates = []
@@ -108,7 +106,7 @@ class BTCDataset(Dataset):
             start_timestamp = self.timestamps[last_time_index]
             dates = pd.date_range(start=start_timestamp, periods=self.horizon, freq='4h')
 
-        df = pd.DataFrame(dummy, columns=self.target_col, index=dates)
+        df = pd.DataFrame(y_flat, columns=self.target_col, index=dates)
 
         return df
 
@@ -164,11 +162,11 @@ def create_labels(horizon, data=pd.DataFrame()):
     """
     label = data.shift(horizon)
     label = label.iloc[horizon:]
-    label.drop(columns=['volume', 'RSI', 'MOM', 'MACD', 'MACD_SIGNAL','MACD_HIST', 'ADX', 'ROC',
+    label.drop(columns=['high', 'low', 'open', 'volume', 'RSI', 'MOM', 'MACD', 'MACD_SIGNAL', 'MACD_HIST', 'ADX', 'ROC',
                         'BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP',
                         'dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance',
                         'OBV'], axis=1, inplace=True)
-    label = label.rename({'open':'next_open', 'high':'next_high', 'close':'next_close', 'low':'next_low'}, axis='columns')
+    label = label.rename({'close':'next_close'}, axis='columns')
 
     return label
 

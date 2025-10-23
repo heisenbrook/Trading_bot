@@ -22,7 +22,7 @@ def make_predictions(data_loader):
     all_preds = np.concatenate(all_preds, axis=0)
     all_time = np.concatenate(all_time, axis=0)
 
-    all_preds = all_preds.reshape(-1,4)
+    all_preds = all_preds.reshape(-1)
     all_time = all_time.reshape(-1)
 
     df = processed_data.denorm_pred(all_preds, all_time)
@@ -42,14 +42,11 @@ def plot_predictions(btcusdt, preds_df):
                                          close= btcusdt['close'],
                                          name='Historical candles'))
 
-    fig.add_trace(go.Candlestick(x = preds_df.index,
-                                         high= preds_df['next_high'],
-                                         low= preds_df['next_low'],
-                                         open= preds_df['next_open'],
-                                         close= preds_df['next_close'],
-                                         name='Predicted candles',
-                                         increasing_line_color='cyan',
-                                         decreasing_line_color='gray'))
+    fig.add_trace(go.Scatter(x = preds_df.index,
+                                         y= preds_df['next_close'],
+                                         mode='lines+markers',
+                                         name='Predicted closes',
+                                         line=dict(color='red')))
     
     fig.update_layout(height=600, 
                       width=800,

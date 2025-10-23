@@ -6,7 +6,7 @@ from optuna import TrialPruned
 from tqdm import tqdm
 from utils.data import BTCDataset, preprocess
 from utils.keys import train_data_folder, generator
-from utils.train import train_epoch, eval_epoch, plot_bar
+from utils.train import train_epoch, eval_epoch, plot_closes
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
 import numpy as np
 from sklearn.metrics import mean_absolute_error
@@ -103,11 +103,11 @@ def objective(trial, device, btcusdt):
             best_test_loss = test_loss
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
-            m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
-            tot_loss = m_open + m_close + max_drawdown
+            m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+            tot_loss = m_close + max_drawdown
             trial.report(tot_loss, epoch)
             if trial.should_prune():
-                raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | MAE Open: ${m_open:.2f} | MAE Close: ${m_close:.2f} | Max Drawdown: ${max_drawdown:.2f}')
+                raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | MAE Close: ${m_close:.2f} | Max Drawdown: ${max_drawdown:.2f}')
 
         if epoch >30 and patience > 30:
             x = dt.now()
@@ -115,10 +115,9 @@ def objective(trial, device, btcusdt):
             print('Early stop')
             break
 
-    m_open, m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
-    tot_loss = m_open + m_close + max_drawdown
+    m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+    tot_loss = m_close + max_drawdown
     print(f'max drawdown: ${max_drawdown:.2f}')
-    print(f'MAE Open: ${m_open:.2f}')
     print(f'MAE Close: ${m_close:.2f}')
     
     return tot_loss
@@ -129,11 +128,10 @@ def metrics(targets, preds):
     Calculate evaluation metrics: Mean Absolute Error for open and close prices, and maximum drawdown.
     """
 
-    mae_open = mean_absolute_error(targets['next_open'], preds['next_open'])
     mae_close = mean_absolute_error(targets['next_close'], preds['next_close'])
     max_drawdown = np.max(np.abs(targets['next_close'] - preds['next_close']))
 
-    return mae_open, mae_close, max_drawdown
+    return mae_close, max_drawdown
 
 
 #============================================
@@ -165,8 +163,8 @@ def testing(device, model, loader, full_data):
     all_targets = np.concatenate(all_targets, axis=0)
     all_time = np.concatenate(all_time, axis=0)
 
-    all_preds = all_preds.reshape(-1,4)
-    all_targets = all_targets.reshape(-1,4)
+    all_preds = all_preds.reshape(-1)
+    all_targets = all_targets.reshape(-1)
     all_time = all_time.reshape(-1)
 
     preds_real = full_data.denorm_pred(all_preds, all_time)
@@ -175,11 +173,11 @@ def testing(device, model, loader, full_data):
     preds_real.sort_index().to_csv(os.path.join(train_data_folder,'preds_real.csv'))
     targets_real.sort_index().to_csv(os.path.join(train_data_folder,'targets_real.csv'))
 
-    plot_bar(targets_real, preds_real)
+    plot_closes(targets_real, preds_real)
 
-    m_open, m_close, max_drawdown = metrics(targets_real, preds_real)
+    m_close, max_drawdown = metrics(targets_real, preds_real)
 
-    return m_open, m_close, max_drawdown
+    return m_close, max_drawdown
 
 
 def optim_testing(device, model, loader, full_data, epoch, n_epochs):
@@ -206,16 +204,16 @@ def optim_testing(device, model, loader, full_data, epoch, n_epochs):
     all_targets = np.concatenate(all_targets, axis=0)
     all_time = np.concatenate(all_time, axis=0)
 
-    all_preds = all_preds.reshape(-1,4)
-    all_targets = all_targets.reshape(-1,4)
+    all_preds = all_preds.reshape(-1)
+    all_targets = all_targets.reshape(-1)
     all_time = all_time.reshape(-1)
 
     preds_real = full_data.denorm_pred(all_preds, all_time)
     targets_real = full_data.denorm_pred(all_targets, all_time)
 
-    m_open, m_close, max_drawdown = metrics(targets_real, preds_real)
+    m_close, max_drawdown = metrics(targets_real, preds_real)
 
-    return m_open, m_close, max_drawdown
+    return m_close, max_drawdown
 
 
 

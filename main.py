@@ -86,9 +86,8 @@ train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, schedu
 
 td_bot = torch.jit.load(os.path.join(train_data_folder,'td_best_model.pt'))
 
-mae_open, mae_close, max_drawdown = testing(device, td_bot, eval_loader, full_data)
+mae_close, max_drawdown = testing(device, td_bot, eval_loader, full_data)
 
-print(f'MAE Open: ${mae_open:.2f}')
 print(f'MAE Close: ${mae_close:.2f}')
 print(f'Max Drawdown: ${max_drawdown:.2f}')
 

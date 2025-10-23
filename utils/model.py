@@ -132,11 +132,15 @@ class DirectionalAccuracyLoss(nn.Module):
 
         custom_mse = self.mse(preds, targets)
 
-        preds_s = torch.sign(preds[:, :, -1] - preds[:, :, -2])
-        targets_s = torch.sign(targets[:, :, -1] - targets[:, :, -2])
+        horizon_size = preds.shape[1]
+        for i in range(horizon_size - 1):       
+            pred_d = preds[:, i, :] - preds[:, i+1, :]
+            target_d = targets[:, i, :] - targets[:, i+1, :]
+
+        preds_s = torch.sign(pred_d)
+        targets_s = torch.sign(target_d)
         correct = (preds_s == targets_s).float()
 
         return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
     
     
-

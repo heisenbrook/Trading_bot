@@ -14,25 +14,25 @@ scaler = torch.amp.GradScaler()
 # Plotting functions 
 #============================================
 
-def plot_bar(targets, preds):
+def plot_closes(targets, preds):
     """
-    Plots real vs predicted candles and saves the figure.
+    Plots real vs predicted closes and saves the figure.
     """
 
-    fig = make_subplots(rows=1, cols=2, column_titles=['Real candles','Predicted candles'])
+    fig = make_subplots(rows=1, cols=2, column_titles=['Real closes','Predicted closes'])
 
-    fig.add_trace(go.Candlestick(x = targets.index,
-                                         high= targets['next_high'],
-                                         low= targets['next_low'],
-                                         open= targets['next_open'],
-                                         close= targets['next_close']),
+    fig.add_trace(go.Scatter(x = targets.index,
+                                         y= targets['next_close'],
+                                         mode='markers',
+                                         name='Real closes',
+                                         line=dict(color='blue')),
                                          row=1, col=1)
 
-    fig.add_trace(go.Candlestick(x = preds.index,
-                                         high= preds['next_high'],
-                                         low= preds['next_low'],
-                                         open= preds['next_open'],
-                                         close= preds['next_close']),
+    fig.add_trace(go.Scatter(x = targets.index,
+                                         y= preds['next_close'],
+                                         mode='markers',
+                                         name='Predicted closes',
+                                         line=dict(color='red')),
                                          row=1, col=2)
     
     fig.update_layout(height=600, 
