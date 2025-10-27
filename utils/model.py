@@ -144,3 +144,26 @@ class DirectionalAccuracyLoss(nn.Module):
         return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
     
     
+class Transfer_learner(nn.Module):
+    """
+    Transfer Learning wrapper for the FinanceTransf model.
+    Freezes all layers except the final output layer for fine-tuning on new data.
+    """
+    def __init__(self, model_path, freeze_base=True):
+        super().__init__()
+        self.model_path = model_path
+        self.freeze_base = freeze_base
+        self.base_model = None
+    
+    def load_model(self):
+        self.base_model = torch.jit.load(self.model_path)
+        if self.freeze_base:
+            for param in self.base_model.parameters():
+                param.requires_grad = False
+            for param in self.base_model.out.parameters():
+                param.requires_grad = True
+                
+        self.base_model.train()
+
+    def forward(self, x):
+        return self.base_model(x)

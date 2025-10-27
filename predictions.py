@@ -26,6 +26,12 @@ def make_predictions(data_loader):
     all_time = all_time.reshape(-1)
 
     df = processed_data.denorm_pred(all_preds, all_time)
+    df['next_open'] = df['next_close'].shift(1)
+    df['range_low'] = df['next_close'] * 0.985
+    df['range_high'] = df['next_close'] * 1.015
+    df = df.rename(columns={'next_open':'open','next_close':'close'})
+    df = df.loc[:, ['range_low','open','close','range_high']]
+    df.dropna(inplace=True)
 
     return df
 
@@ -43,10 +49,18 @@ def plot_predictions(btcusdt, preds_df):
                                          name='Historical candles'))
 
     fig.add_trace(go.Scatter(x = preds_df.index,
-                                         y= preds_df['next_close'],
-                                         mode='lines+markers',
+                                         y= preds_df['close'],
+                                         mode='lines',
                                          name='Predicted closes',
                                          line=dict(color='red')))
+    
+    fig.add_trace(go.Scatter(x = preds_df.index.tolist() + pred_df.index.tolist()[::-1],
+                                         y= preds_df['range_high'].tolist() + preds_df['range_low'].tolist()[::-1],
+                                         fill='toself',
+                                         fillcolor='rgba(255, 182, 193, 0.5)',
+                                         mode='lines',
+                                         name='Predicted ranges',
+                                         line=dict(color='red', dash='dash')))
     
     fig.update_layout(height=600, 
                       width=800,
