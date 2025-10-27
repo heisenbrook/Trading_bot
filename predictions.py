@@ -8,7 +8,7 @@ from utils.keys import user, psw, data_folder, train_data_folder
 from utils.data import BTCDataset, preprocess
 
 
-def make_predictions(data_loader):
+def make_predictions(data_loader, mae_close):
     """
     Makes predictions using the trained model and returns a DataFrame with denormalized predictions."""
     all_preds = []
@@ -27,8 +27,8 @@ def make_predictions(data_loader):
 
     df = processed_data.denorm_pred(all_preds, all_time)
     df['next_open'] = df['next_close'].shift(1)
-    df['range_low'] = df['next_close'] * 0.985
-    df['range_high'] = df['next_close'] * 1.015
+    df['range_low'] = df['next_close'] - mae_close
+    df['range_high'] = df['next_close'] + mae_close
     df = df.rename(columns={'next_open':'open','next_close':'close'})
     df = df.loc[:, ['range_low','open','close','range_high']]
     df.dropna(inplace=True)
@@ -79,6 +79,11 @@ model.eval()
 with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
 
+with open(os.path.join(train_data_folder, 'mae_close.json'), 'r') as f:
+    mae_close_dict = json.load(f)
+    
+mae_close = mae_close_dict['mae_close']
+
 
 tv = TvDatafeed(user, psw)
 
@@ -101,7 +106,7 @@ processed_data = BTCDataset(btcusdt,
 data_loader = torch.utils.data.DataLoader(processed_data)
 
 
-pred_df = make_predictions(data_loader)
+pred_df = make_predictions(data_loader, mae_close)
 plot_predictions(btcusdt.iloc[-18:], pred_df)
 pred_df.to_csv(os.path.join(data_folder, 'predictions.csv'))
 print(f'Predictions saved to {os.path.join(data_folder, "predictions.csv")}')

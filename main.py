@@ -91,5 +91,10 @@ mae_close, max_drawdown = testing(device, td_bot, eval_loader, full_data)
 print(f'MAE Close: ${mae_close:.2f}')
 print(f'Max Drawdown: ${max_drawdown:.2f}')
 
+mae_close_dict = {'mae_close': mae_close.item()}
+
+with open(os.path.join(train_data_folder, 'mae_close.json'), 'w') as f:
+    json.dump(mae_close_dict, f, indent=4)
+
 # Uncomment to run the Dash app for visualization
 # app.run(debug=True, use_reloader=False, port=8050)
