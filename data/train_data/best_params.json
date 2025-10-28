@@ -1,15 +1,15 @@
 {
-    "n_layers": 1,
-    "d_model": 64,
+    "n_layers": 2,
+    "d_model": 96,
     "n_heads": 4,
-    "dim_feedforward": 512,
-    "dropout": 0.30000000000000004,
+    "dim_feedforward": 448,
+    "dropout": 0.1,
     "activation": "relu",
     "horizon": 18,
-    "win_size": 189,
+    "win_size": 166,
     "batch_size": 32,
-    "alpha": 0.9,
-    "lr": 0.000777246208441439,
-    "n_epochs": 150,
+    "alpha": 0.5,
+    "lr": 0.0009192469277412288,
+    "n_epochs": 190,
     "optim": "adam"
 }
