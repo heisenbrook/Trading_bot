@@ -47,6 +47,15 @@ def plot_predictions(btcusdt, preds_df):
                                          open= btcusdt['open'],
                                          close= btcusdt['close'],
                                          name='Historical candles'))
+    
+    # fig.add_trace(go.Candlestick(x = pred_df.index,
+    #                                      high= pred_df['range_high'],
+    #                                      low= pred_df['range_low'],
+    #                                      open= pred_df['open'],
+    #                                      close= pred_df['close'],
+    #                                      name='Predicted candles',
+    #                                      increasing_line_color='cyan',
+    #                                      decreasing_line_color='grey'))
 
     fig.add_trace(go.Scatter(x = preds_df.index,
                                          y= preds_df['close'],
@@ -81,7 +90,7 @@ with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
 
 with open(os.path.join(train_data_folder, 'mae_close.json'), 'r') as f:
     mae_close_dict = json.load(f)
-    
+
 mae_close = mae_close_dict['mae_close']
 
 

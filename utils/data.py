@@ -32,6 +32,7 @@ class BTCDataset(Dataset):
         self.momentum_col = ['RSI', 'MOM', 'MACD', 'MACD_SIGNAL', 'MACD_HIST', 'ADX', 'ROC']
         self.bands_col = ['BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP']
         self.patterns_col = ['dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance']
+        self.statistical_col = ['TSF']
         self.volume_col = ['volume', 'OBV']
         self.feat_cols = self.data.columns.to_list()
         self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.bands_col), len(self.patterns_col), len(self.volume_col)]
@@ -52,6 +53,10 @@ class BTCDataset(Dataset):
                 ('momentum', StandardScaler(), self.momentum_col),
                 ('patterns', StandardScaler(), self.patterns_col),
                 ('bands', MinMaxScaler(), self.bands_col),
+                ('statistical', Pipeline([
+                         ('robust', RobustScaler()),
+                         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
+                ]), self.statistical_col),
                 ('targets', Pipeline([
                          ('robust', RobustScaler()),
                          ('power', PowerTransformer(method='yeo-johnson', standardize=True))
@@ -141,6 +146,9 @@ def preprocess(horizon, data=pd.DataFrame()):
     # Pattern recognition indicators
     data = add_res_support_features(data, 14)
 
+    # Statitical indicators
+    data['TSF'] = talib.TSF(data['close'], timeperiod=14)
+
     # Volume indicators
     data['OBV'] = talib.OBV(data['close'], data['volume'])
 
@@ -163,7 +171,7 @@ def create_labels(horizon, data=pd.DataFrame()):
     label = data.shift(horizon)
     label = label.iloc[horizon:]
     label.drop(columns=['high', 'low', 'open', 'volume', 'RSI', 'MOM', 'MACD', 'MACD_SIGNAL', 'MACD_HIST', 'ADX', 'ROC',
-                        'BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP',
+                        'BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP','TSF',
                         'dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance',
                         'OBV'], axis=1, inplace=True)
     label = label.rename({'close':'next_close'}, axis='columns')
