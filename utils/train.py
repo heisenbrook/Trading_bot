@@ -4,56 +4,12 @@ import plotly.graph_objects as go
 import pandas as pd
 import torch
 import os
-from utils.keys import train_data_folder
+from utils.keys import train_data_folder, fine_tuning_data_folder
+from utils.plotting import plot_loss, plot_loss_fine_tuning
 from datetime import datetime as dt
 from tqdm import tqdm
 
 scaler = torch.amp.GradScaler()
-
-#============================================
-# Plotting functions 
-#============================================
-
-def plot_closes(targets, preds):
-    """
-    Plots real vs predicted closes and saves the figure.
-    """
-
-    fig = make_subplots(rows=1, cols=2, column_titles=['Real closes','Predicted closes'])
-
-    fig.add_trace(go.Scatter(x = targets.index,
-                                         y= targets['next_close'],
-                                         mode='markers',
-                                         name='Real closes',
-                                         line=dict(color='blue')),
-                                         row=1, col=1)
-
-    fig.add_trace(go.Scatter(x = targets.index,
-                                         y= preds['next_close'],
-                                         mode='markers',
-                                         name='Predicted closes',
-                                         line=dict(color='red')),
-                                         row=1, col=2)
-    
-    fig.update_layout(height=600, 
-                      width=1200,
-                      title='Real vs predictions',
-                      xaxis1=dict(rangeslider=dict(visible=False)),
-                      xaxis2=dict(rangeslider=dict(visible=False)))
-    
-
-    fig.write_image(os.path.join(train_data_folder,'Pred_vs_real_candles.png'))
-
-def plot_loss(train_losses, test_losses):
-    """
-    Plots training and test loss over epochs and saves the figure.
-    """
-
-    df = pd.DataFrame(dict(train_loss=train_losses, test_loss=test_losses))
-    fig = px.line(df, labels={'index': 'Epochs', 'value': 'Loss'},
-                  title='Training and Test Loss Over Epochs')
-    fig.update_layout(xaxis_title='Epochs', yaxis_title='Loss') 
-    fig.write_image(os.path.join(train_data_folder, 'Training_loss.png'))
 
 
 #============================================
@@ -75,12 +31,18 @@ def train_epoch(device, epoch, n_epochs, model, optimizer, criterion, loader):
         data, label = data.to(device), label.to(device)
 
         optimizer.zero_grad()
-        with torch.autocast(device_type='cuda'):
+        if device.type == 'cuda':
+            with torch.autocast(device_type='cuda'):
+                out = model(data)
+                loss = criterion(out, label)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
             out = model(data)
             loss = criterion(out, label)
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+            loss.backward()
+            optimizer.step()
 
         tot_loss += loss.item()
     
@@ -112,7 +74,7 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
 # Main training function
 #============================================
 
-def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_loader, test_loader):
+def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_loader, test_loader, fine_tuning=False):
     """         
     Main training loop with early stopping and model saving.
     """
@@ -139,7 +101,10 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             patience = 0
             best_test_loss = test_loss
             saved_model = torch.jit.script(model)
-            saved_model.save(os.path.join(train_data_folder,'td_best_model.pt'))
+            if fine_tuning:
+                saved_model.save(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt'))
+            else:
+                saved_model.save(os.path.join(train_data_folder,'td_best_model.pt'))
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
 
@@ -149,7 +114,10 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             print('Early stop')
             break
     
-    plot_loss(train_losses, test_losses)
+    if fine_tuning:
+        plot_loss_fine_tuning(train_losses, test_losses)
+    else:
+        plot_loss(train_losses, test_losses)
 
 
 

@@ -75,7 +75,11 @@ for p in td_bot.parameters():
         nn.init.xavier_uniform_(p)
 
 criterion = DirectionalAccuracyLoss(alpha)
-optimizer = optim.Adam(td_bot.parameters(), lr=lr, weight_decay=1e-5)
+if best_params['optim'] == 'adam':
+    optimizer = optim.Adam(td_bot.parameters(), lr=lr, weight_decay=1e-5)
+else:
+    optimizer = optim.SGD(td_bot.parameters(), lr=lr, momentum=0.9, weight_decay=1e-5)
+    
 nn.utils.clip_grad_norm_(td_bot.parameters(), max_norm=1.0)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='min', factor=0.5)
 

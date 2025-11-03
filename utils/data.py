@@ -201,7 +201,7 @@ def fit_power_law(data):
     x_fit = x[valid]
     y_fit = y[valid]
 
-    params, _ = curve_fit(power_law, x_fit, y_fit, p0=[1, 1])
+    params, _ = curve_fit(power_law, x_fit, y_fit, p0=[1, 1], bounds=([0.001, -5], [np.inf, 5]))
 
     fitted_y = power_law(x, *params)
 

@@ -4,8 +4,9 @@ import numpy as np
 import torch
 import os
 import json
-from utils.keys import user, psw, data_folder, train_data_folder
+from utils.keys import user, psw, data_folder, train_data_folder, fine_tuning_data_folder
 from utils.data import BTCDataset, preprocess
+from utils.plotting import plot_predictions
 
 
 def make_predictions(data_loader, mae_close):
@@ -35,53 +36,12 @@ def make_predictions(data_loader, mae_close):
 
     return df
 
-def plot_predictions(btcusdt, preds_df):
-    """
-    Plots the newly predicted candles on the current data.
-    """
-    fig = go.Figure()
 
-    fig.add_trace(go.Candlestick(x = btcusdt.index,
-                                         high= btcusdt['high'],
-                                         low= btcusdt['low'],
-                                         open= btcusdt['open'],
-                                         close= btcusdt['close'],
-                                         name='Historical candles'))
-    
-    # fig.add_trace(go.Candlestick(x = pred_df.index,
-    #                                      high= pred_df['range_high'],
-    #                                      low= pred_df['range_low'],
-    #                                      open= pred_df['open'],
-    #                                      close= pred_df['close'],
-    #                                      name='Predicted candles',
-    #                                      increasing_line_color='cyan',
-    #                                      decreasing_line_color='grey'))
-
-    fig.add_trace(go.Scatter(x = preds_df.index,
-                                         y= preds_df['close'],
-                                         mode='lines',
-                                         name='Predicted closes',
-                                         line=dict(color='red')))
-    
-    fig.add_trace(go.Scatter(x = preds_df.index.tolist() + pred_df.index.tolist()[::-1],
-                                         y= preds_df['range_high'].tolist() + preds_df['range_low'].tolist()[::-1],
-                                         fill='toself',
-                                         fillcolor='rgba(255, 182, 193, 0.5)',
-                                         mode='lines',
-                                         name='Predicted ranges',
-                                         line=dict(color='red', dash='dash')))
-    
-    fig.update_layout(height=600, 
-                      width=800,
-                      title='Predicted candles',
-                      xaxis1=dict(rangeslider=dict(visible=False)))
-    
-    fig.write_image(os.path.join(data_folder,'New_predicted_candles.png'))
-
-
-
-
-model = torch.jit.load(os.path.join(train_data_folder,'td_best_model.pt'))
+if os.path.exists(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt')):
+    model_path = os.path.join(fine_tuning_data_folder,'td_finetuned_model.pt')
+else:
+    model_path = os.path.join(train_data_folder,'td_best_model.pt')
+model = torch.jit.load(model_path)
 model.to('cpu')
 model.eval()
 

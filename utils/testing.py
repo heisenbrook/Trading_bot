@@ -6,8 +6,9 @@ from optuna import TrialPruned
 from tqdm import tqdm
 from utils.data import BTCDataset, preprocess
 from utils.keys import train_data_folder, generator
-from utils.train import train_epoch, eval_epoch, plot_closes
+from utils.train import train_epoch, eval_epoch
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
+from utils.plotting import plot_closes, plot_closes_fine_tuning
 import numpy as np
 from sklearn.metrics import mean_absolute_error
 
@@ -139,7 +140,7 @@ def metrics(targets, preds):
 #============================================   
 
 
-def testing(device, model, loader, full_data):
+def testing(device, model, loader, full_data, fine_tuning=False):
     """
     Evaluate the model on the evaluation dataset and return evaluation metrics.       
     """
@@ -173,7 +174,10 @@ def testing(device, model, loader, full_data):
     preds_real.sort_index().to_csv(os.path.join(train_data_folder,'preds_real.csv'))
     targets_real.sort_index().to_csv(os.path.join(train_data_folder,'targets_real.csv'))
 
-    plot_closes(targets_real, preds_real)
+    if fine_tuning:
+        plot_closes_fine_tuning(targets_real, preds_real)
+    else:
+        plot_closes(targets_real, preds_real)
 
     m_close, max_drawdown = metrics(targets_real, preds_real)
 
