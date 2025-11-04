@@ -31,7 +31,7 @@ def objective(trial, device, btcusdt):
         'dim_feedforward': trial.suggest_int('dim_feedforward', 64, 512, step=64),
         'dropout': trial.suggest_float('dropout', 0.1, 0.5, step=0.1),
         'activation': trial.suggest_categorical('activation', ['relu', 'gelu']),
-        'horizon': trial.suggest_int('horizon', 6, 24, step=6),
+        'horizon': trial.suggest_int('horizon', 12, 24, step=6),
         'win_size': trial.suggest_int('win_size', 64, 256),
         'batch_size': trial.suggest_int('batch_size', 32, 128, step=16),
         'alpha': trial.suggest_float('alpha', 0.1, 0.9, step=0.1),
@@ -117,11 +117,11 @@ def objective(trial, device, btcusdt):
             break
 
     m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
-    tot_loss = m_close + max_drawdown
+    loss = (1.0 * m_close) + (5.0 * max_drawdown)
     print(f'max drawdown: ${max_drawdown:.2f}')
     print(f'MAE Close: ${m_close:.2f}')
     
-    return tot_loss
+    return loss
 
 
 def metrics(targets, preds):

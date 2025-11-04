@@ -1,10 +1,10 @@
-from tvDatafeed import TvDatafeed, Interval
+from tvDatafeed import Interval
 import json
 import os
 import torch
 import optuna
 from optuna.pruners import MedianPruner
-from utils.keys import user, psw, train_data_folder
+from utils.keys import tv, train_data_folder
 from utils.testing import objective
 
 #============================================
@@ -16,8 +16,6 @@ from utils.testing import objective
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load data
-
-tv = TvDatafeed(user, psw)
 
 btcusdt  = tv.get_hist(symbol='BTCUSDT', 
                       exchange='BINANCE', 

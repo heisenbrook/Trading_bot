@@ -47,9 +47,6 @@ def plot_closes_fine_tuning(targets, preds):
     Plots real vs predicted closes and saves the figure.
     Modified for fine-tuning context.
     """
-
-    date_now = dt.now().strftime('%Y-%m-%d %H:%M:%S')
-
     fig = make_subplots(rows=1, cols=2, column_titles=['Real closes','Predicted closes'])
 
     fig.add_trace(go.Scatter(x = targets.index,
@@ -73,7 +70,7 @@ def plot_closes_fine_tuning(targets, preds):
                       xaxis2=dict(rangeslider=dict(visible=False)))
     
 
-    fig.write_image(os.path.join(fine_tuning_data_folder,f'Pred_vs_real_candles_{date_now}.png'))
+    fig.write_image(os.path.join(fine_tuning_data_folder,f'Pred_vs_real_candles.png'))
 
 def plot_predictions(btcusdt, preds_df):
     """
@@ -126,10 +123,10 @@ def plot_loss_fine_tuning(train_losses, test_losses):
     Plots training and test loss over epochs and saves the figure.
     Modified for fine-tuning context.
     """
-    date_now = dt.now().strftime('%Y-%m-%d %H:%M:%S')
+    date_now = dt.now().strftime('%Y%m%d_%H%M%S')
 
     df = pd.DataFrame(dict(train_loss=train_losses, test_loss=test_losses))
     fig = px.line(df, labels={'index': 'Epochs', 'value': 'Loss'},
                   title='Training and Test Loss Over Epochs')
     fig.update_layout(xaxis_title='Epochs', yaxis_title='Loss') 
-    fig.write_image(os.path.join(fine_tuning_data_folder, f'Training_loss_fine tuning_{date_now}.png'))
+    fig.write_image(os.path.join(fine_tuning_data_folder, f'Training_loss_fine_tuning_{date_now}.png'))

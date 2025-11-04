@@ -1,4 +1,4 @@
-from tvDatafeed import TvDatafeed, Interval
+from tvDatafeed import Interval
 import json
 import os
 import torch
@@ -7,7 +7,7 @@ import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader, random_split
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
-from utils.keys import user, psw, train_data_folder, generator
+from utils.keys import tv, train_data_folder, generator
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -21,8 +21,6 @@ from utils.testing import testing
 # Source: https://github.com/rongardF/tvdatafeed
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-tv = TvDatafeed(user, psw)
 
 btcusdt = tv.get_hist(symbol='BTCUSDT', 
                       exchange='BINANCE', 
@@ -79,7 +77,7 @@ if best_params['optim'] == 'adam':
     optimizer = optim.Adam(td_bot.parameters(), lr=lr, weight_decay=1e-5)
 else:
     optimizer = optim.SGD(td_bot.parameters(), lr=lr, momentum=0.9, weight_decay=1e-5)
-    
+
 nn.utils.clip_grad_norm_(td_bot.parameters(), max_norm=1.0)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='min', factor=0.5)
 

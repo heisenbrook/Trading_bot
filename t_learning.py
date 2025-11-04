@@ -1,12 +1,13 @@
-from tvDatafeed import TvDatafeed, Interval
+from tvDatafeed import Interval
 from datetime import datetime as dt
 import torch
 import torch.nn as nn
+import pandas as pd
 from torch.utils.data import DataLoader, random_split
 import os
 import json
 import schedule
-from utils.keys import user, psw, train_data_folder, fine_tuning_data_folder, generator
+from utils.keys import tv, train_data_folder, fine_tuning_data_folder, generator
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -19,8 +20,8 @@ from utils.model import DirectionalAccuracyLoss
 with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
 
-#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cpu')
+
 
 class Transfer_learner(nn.Module):
     """
@@ -84,20 +85,20 @@ class Continous_learning(nn.Module):
     Continual Learning wrapper for the FinanceTransf model.
     Allows training on new tasks while retaining knowledge from previous tasks.
     """
-    def __init__(self, model_path, current_date, retrain_interval=7):
+    def __init__(self, model_path, tv, current_date, retrain_h, retrain_interval=0):
         super().__init__()
         self.model_path = model_path
         self.retrain_interval = retrain_interval
         self.n_candles = retrain_interval * 6  # Assuming 4-hour candles
-        self.retrain_h = []
+        self.retrain_h = retrain_h
         self.current_date = current_date
-        self.tv = TvDatafeed(user, psw)
+        self.tv = tv
 
-        self.btcusdt = self.tv.get_hist(symbol='BTCUSDT', 
-                      exchange='BINANCE', 
-                      interval=Interval.in_4_hour, 
-                      n_bars= self.n_candles * 10,
-                      extended_session=True)
+        self.btcusdt = tv.get_hist(symbol='BTCUSDT', 
+                                        exchange='BINANCE',
+                                        interval=Interval.in_4_hour, 
+                                        n_bars= self.n_candles * 10,
+                                        extended_session=True)
         
         self.btcusdt = preprocess(best_params['horizon'], self.btcusdt)
         self.data = BTCDataset(self.btcusdt,
@@ -109,7 +110,8 @@ class Continous_learning(nn.Module):
         if not self.retrain_h:
             return True
         
-        last_retrain_h = max(self.retrain_h)
+        last_retrain_h_str = self.retrain_h[-1]
+        last_retrain_h = dt.strptime(last_retrain_h_str, '%Y-%m-%d %H:%M:%S')
         days_since_last_retrain = (self.current_date - last_retrain_h).days
 
         return days_since_last_retrain >= self.retrain_interval
@@ -146,8 +148,6 @@ class Continous_learning(nn.Module):
         fine_tuner.fine_tune(best_params['n_epochs'], optimizer, criterion, scheduler)
         print('Fine-tuning completed.')
         print(f'Saving fine-tuned model in {fine_tuning_data_folder}')
-        print('Saving current retraining date...')
-        self.retrain_h.append(self.current_date)
         print('Evaluating fine-tuned model on evaluation set...')
         mae_close, max_drawdown = testing(device, model, eval_loader, self.data, fine_tuning=True)
         print(f'MAE Close after fine-tuning: ${mae_close:.2f}')
@@ -155,22 +155,48 @@ class Continous_learning(nn.Module):
 
         return mae_close, max_drawdown
 
+# Utility functions for logging and scheduling
+
+def append_logger_json(file_path, new_entry):
+    """
+    Appends a new entry to the JSON logger file.
+    """
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            logger_data = json.load(f)
+    else:
+        logger_data = []
+
+    logger_data.append(new_entry)
+    logger_df = pd.DataFrame(data=logger_data)
+    logger_df.to_csv(os.path.join(fine_tuning_data_folder, 'continual_learning_log.csv'), mode='a', header=not os.path.exists(os.path.join(fine_tuning_data_folder, 'continual_learning_log.csv')), index=False)
+
+    with open(file_path, 'w') as f:
+        json.dump(logger_data, f, indent=4)
+
 def daily_learning_routine():
     """
     Routine to perform continual learning on a daily basis.
     """
-    logger_file = {}
     if os.path.exists(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt')):
         model_path = os.path.join(fine_tuning_data_folder,'td_finetuned_model.pt')
     else:
         model_path = os.path.join(train_data_folder,'td_best_model.pt')
-    current_date = dt.now().strftime('%Y-%m-%d %H:%M:%S')
-    continual_learner = Continous_learning(model_path, current_date)
+    if os.path.exists(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json')):
+        with open(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), 'r') as f:
+            results_dict = json.load(f)
+        retrain_h = [entry['date'] for entry in results_dict if entry['retraining_done']]
+        print(f'Previous retraining dates: {retrain_h}')
+    else:
+        retrain_h = []
+    current_date_str = dt.now().strftime('%Y-%m-%d %H:%M:%S')
+    current_date = dt.strptime(current_date_str, '%Y-%m-%d %H:%M:%S')
+    continual_learner = Continous_learning(model_path, tv, current_date, retrain_h)
     if continual_learner.should_retrain():
         print(f'Performing continual learning for date: {current_date}')
         mae_close, max_drawdown = continual_learner.continous_learning()
         result = {
-            'date': current_date,
+            'date': current_date.strftime('%Y-%m-%d %H:%M:%S'),
             'retraining_done': True,
             'mae_close': float(mae_close),
             'max_drawdown': float(max_drawdown)
@@ -178,16 +204,13 @@ def daily_learning_routine():
     else:
         print(f'No retraining needed for date: {current_date}')
         result = {
-            'date': current_date,
+        'date': current_date.strftime('%Y-%m-%d %H:%M:%S'),
             'retraining_done': False,
             'mae_close': '-',
             'max_drawdown': '-'
         }
 
-    logger_file.update(result)
-    
-    with open(os.path.join(fine_tuning_data_folder, f'results_fine_tuning.json'), 'w') as f:
-        json.dump(logger_file, f, indent=4)
+    append_logger_json(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), result)
 
 daily_learning_routine()
 #schedule.every().day.at('10:40').do(daily_learning_routine)

@@ -1,10 +1,10 @@
-from tvDatafeed import TvDatafeed, Interval
+from tvDatafeed import Interval
 import plotly.graph_objects as go
 import numpy as np
 import torch
 import os
 import json
-from utils.keys import user, psw, data_folder, train_data_folder, fine_tuning_data_folder
+from utils.keys import tv, data_folder, train_data_folder, fine_tuning_data_folder
 from utils.data import BTCDataset, preprocess
 from utils.plotting import plot_predictions
 
@@ -38,8 +38,10 @@ def make_predictions(data_loader, mae_close):
 
 
 if os.path.exists(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt')):
+    print('Loading fine-tuned model for predictions...')
     model_path = os.path.join(fine_tuning_data_folder,'td_finetuned_model.pt')
 else:
+    print('Loading base model for predictions...')
     model_path = os.path.join(train_data_folder,'td_best_model.pt')
 model = torch.jit.load(model_path)
 model.to('cpu')
@@ -48,13 +50,15 @@ model.eval()
 with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
 
-with open(os.path.join(train_data_folder, 'mae_close.json'), 'r') as f:
-    mae_close_dict = json.load(f)
+with open(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), 'r') as f:
+    results_dict = json.load(f)
 
-mae_close = mae_close_dict['mae_close']
+last_entry = results_dict[-1]
+if last_entry['mae_close'] == '-':
+    last_entry = results_dict[-2]
 
+mae_close = last_entry['mae_close']
 
-tv = TvDatafeed(user, psw)
 
 btcusdt = tv.get_hist(symbol='BTCUSDT', 
                       exchange='BINANCE', 
