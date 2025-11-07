@@ -1,6 +1,6 @@
 import torch
 import os
-from utils.keys import train_data_folder, fine_tuning_data_folder
+from utils.keys import train_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder
 from utils.plotting import plot_loss, plot_loss_fine_tuning
 from datetime import datetime as dt
 from tqdm import tqdm
@@ -16,7 +16,6 @@ def train_epoch(device, epoch, n_epochs, model, optimizer, criterion, loader):
     """
     Train the model for one epoch.
     """
-
     model.train()
     tot_loss = 0
     for data, label, _ in tqdm(loader,
@@ -49,7 +48,6 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
     """ 
     Evaluate the model on the validation/test set.
     """
-
     model.eval()
     tot_loss = 0
     with torch.no_grad():
@@ -70,7 +68,7 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
 # Main training function
 #============================================
 
-def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_loader, test_loader, fine_tuning=False):
+def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_loader, test_loader, fine_tuning=False, lstm=False):
     """         
     Main training loop with early stopping and model saving.
     """
@@ -99,8 +97,10 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             saved_model = torch.jit.script(model)
             if fine_tuning:
                 saved_model.save(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt'))
+            elif lstm:
+                saved_model.save(os.path.join(train_data_folder_lstm,'td_best_model_lstm.pt'))
             else:
-                saved_model.save(os.path.join(train_data_folder,'td_best_model.pt'))
+                saved_model.save(os.path.join(train_data_folder_tf,'td_best_model.pt'))
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
 

@@ -144,4 +144,34 @@ class DirectionalAccuracyLoss(nn.Module):
         return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
     
     
+class FinanceLSTM(nn.Module):
+    """
+    LSTM model for financial time series forecasting.
+    """
+    def __init__(self, 
+                 input_size, 
+                 hidden_size, 
+                 num_layers, 
+                 n_targets, 
+                 dropout,
+                 horizon):
+        super().__init__()
+        self.horizon = horizon
+        self.lstm = nn.LSTM(input_size=input_size,
+                            hidden_size=hidden_size,
+                            num_layers=num_layers,
+                            dropout=dropout,
+                            batch_first=True)
+        self.out = nn.Sequential(
+            nn.LayerNorm(hidden_size),
+            nn.Linear(hidden_size, 128),
+            nn.GELU(),
+            nn.Linear(128, n_targets))
+    
+    def forward(self, x):
 
+        lstm_out, _ = self.lstm(x)
+        x = lstm_out[:, -self.horizon:, :]
+        x = self.out(x)
+
+        return x
