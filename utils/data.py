@@ -32,7 +32,7 @@ class BTCDataset(Dataset):
         self.momentum_col = ['RSI', 'MOM', 'MACD', 'MACD_SIGNAL', 'MACD_HIST', 'ADX', 'ROC']
         self.bands_col = ['BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP']
         self.patterns_col = ['dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance']
-        self.statistical_col = ['TSF']
+        self.statistical_col = ['TSF', 'VAR', 'LINREG', 'STDDEV']
         self.volume_col = ['volume', 'OBV']
         self.feat_cols = self.data.columns.to_list()
         self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.bands_col), len(self.patterns_col), len(self.volume_col)]
@@ -148,6 +148,9 @@ def preprocess(horizon, data=pd.DataFrame()):
 
     # Statitical indicators
     data['TSF'] = talib.TSF(data['close'], timeperiod=14)
+    data['VAR'] = talib.VAR(data['close'], timeperiod=14, nbdev=1)
+    data['LINREG'] = talib.LINEARREG(data['close'], timeperiod=14)
+    data['STDDEV'] = talib.STDDEV(data['close'], timeperiod=14, nbdev=1)
 
     # Volume indicators
     data['OBV'] = talib.OBV(data['close'], data['volume'])
@@ -172,6 +175,7 @@ def create_labels(horizon, data=pd.DataFrame()):
     label = label.iloc[horizon:]
     label.drop(columns=['high', 'low', 'open', 'volume', 'RSI', 'MOM', 'MACD', 'MACD_SIGNAL', 'MACD_HIST', 'ADX', 'ROC',
                         'BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP','TSF',
+                        'VAR', 'LINREG', 'STDDEV',
                         'dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance',
                         'OBV'], axis=1, inplace=True)
     label = label.rename({'close':'next_close'}, axis='columns')

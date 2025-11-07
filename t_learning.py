@@ -1,4 +1,3 @@
-from tvDatafeed import Interval
 from datetime import datetime as dt
 import torch
 import torch.nn as nn
@@ -7,7 +6,7 @@ from torch.utils.data import DataLoader, random_split
 import os
 import json
 import schedule
-from utils.keys import tv, train_data_folder, fine_tuning_data_folder, generator
+from utils.keys import train_data_folder, fine_tuning_data_folder, generator, get_candles
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -85,36 +84,30 @@ class Continous_learning(nn.Module):
     Continual Learning wrapper for the FinanceTransf model.
     Allows training on new tasks while retaining knowledge from previous tasks.
     """
-    def __init__(self, model_path, tv, current_date, retrain_h, retrain_interval=0):
+    def __init__(self, model_path,current_date, retrain_h, retrain_interval=24):
         super().__init__()
         self.model_path = model_path
         self.retrain_interval = retrain_interval
-        self.n_candles = retrain_interval * 6  # Assuming 4-hour candles
+        self.n_candles = 30
         self.retrain_h = retrain_h
         self.current_date = current_date
-        self.tv = tv
 
-        self.btcusdt = tv.get_hist(symbol='BTCUSDT', 
-                                        exchange='BINANCE',
-                                        interval=Interval.in_4_hour, 
-                                        n_bars= self.n_candles * 10,
-                                        extended_session=True)
-        
+        self.btcusdt = get_candles(self.n_candles)
         self.btcusdt = preprocess(best_params['horizon'], self.btcusdt)
         self.data = BTCDataset(self.btcusdt,
-                           win_size=best_params['win_size'], 
-                           horizon=best_params['horizon'],
-                           is_training=True)
-
+                              win_size=best_params['win_size'], 
+                              horizon=best_params['horizon'],
+                              is_training=True)
+        
     def should_retrain(self):
         if not self.retrain_h:
             return True
         
         last_retrain_h_str = self.retrain_h[-1]
         last_retrain_h = dt.strptime(last_retrain_h_str, '%Y-%m-%d %H:%M:%S')
-        days_since_last_retrain = (self.current_date - last_retrain_h).days
+        hours_since_last_retrain = (self.current_date - last_retrain_h).total_seconds() / 3600
 
-        return days_since_last_retrain >= self.retrain_interval
+        return hours_since_last_retrain >= self.retrain_interval
 
     def get_data(self): 
         train_data, test_data, eval_data = random_split(self.data, [0.7 , 0.2, 0.1], generator=generator)
@@ -186,12 +179,11 @@ def daily_learning_routine():
         with open(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), 'r') as f:
             results_dict = json.load(f)
         retrain_h = [entry['date'] for entry in results_dict if entry['retraining_done']]
-        print(f'Previous retraining dates: {retrain_h}')
     else:
         retrain_h = []
     current_date_str = dt.now().strftime('%Y-%m-%d %H:%M:%S')
     current_date = dt.strptime(current_date_str, '%Y-%m-%d %H:%M:%S')
-    continual_learner = Continous_learning(model_path, tv, current_date, retrain_h)
+    continual_learner = Continous_learning(model_path, current_date, retrain_h)
     if continual_learner.should_retrain():
         print(f'Performing continual learning for date: {current_date}')
         mae_close, max_drawdown = continual_learner.continous_learning()

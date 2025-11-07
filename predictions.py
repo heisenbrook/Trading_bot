@@ -50,14 +50,19 @@ model.eval()
 with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
 
-with open(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), 'r') as f:
-    results_dict = json.load(f)
+if os.path.exists(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json')):
+    with open(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), 'r') as f:
+        results_dict = json.load(f)
 
-last_entry = results_dict[-1]
-if last_entry['mae_close'] == '-':
-    last_entry = results_dict[-2]
+    last_entry = results_dict[-1]
+    if last_entry['mae_close'] == '-':
+        last_entry = results_dict[-2]
 
-mae_close = last_entry['mae_close']
+    mae_close = last_entry['mae_close']
+else:
+    with open(os.path.join(train_data_folder, 'mae_close.json'), 'r') as f:
+        mae_close_dict = json.load(f)
+    mae_close = mae_close_dict['mae_close']
 
 
 btcusdt = tv.get_hist(symbol='BTCUSDT', 

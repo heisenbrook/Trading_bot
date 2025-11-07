@@ -1,14 +1,8 @@
 [
     {
-        "date": "2025-11-04 16:44:43",
+        "date": "2025-11-06 16:41:31",
         "retraining_done": true,
-        "mae_close": 281.6827392578125,
-        "max_drawdown": 1487.3046875
-    },
-    {
-        "date": "2025-11-04 16:45:19",
-        "retraining_done": false,
-        "mae_close": "-",
-        "max_drawdown": "-"
+        "mae_close": 228.14393615722656,
+        "max_drawdown": 1443.53125
     }
 ]
