@@ -34,9 +34,10 @@ class BTCDataset(Dataset):
         self.patterns_col = ['dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance']
         self.statistical_col = ['TSF', 'VAR', 'LINREG', 'STDDEV']
         self.volume_col = ['volume', 'OBV']
-        self.feat_cols = self.data.columns.to_list()
-        self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.bands_col), len(self.patterns_col), len(self.volume_col)]
         self.target_col = ['next_close']
+        self.feat_cols = self.data.columns.to_list()
+        self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.bands_col), len(self.patterns_col), len(self.statistical_col), len(self.volume_col)]
+        self.feat_cols_tot = len(self.prices_col) + len(self.momentum_col) + len(self.bands_col) + len(self.patterns_col) + len(self.statistical_col) + len(self.volume_col) + len(self.target_col)
         self.timestamps = self.data.index.values
         self.time_index = np.arange(len(self.data))
 
@@ -119,7 +120,7 @@ class BTCDataset(Dataset):
 # Preprocessing functions
 # =============================================
 
-def preprocess(horizon, data=pd.DataFrame()):
+def preprocess(horizon, data: pd.DataFrame):
     """
     Main preprocessing function to prepare raw historical data for modeling.
     It computes technical indicators, fits power law trends, and adds support/resistance features.
@@ -165,7 +166,7 @@ def preprocess(horizon, data=pd.DataFrame()):
     return data
 
 
-def create_labels(horizon, data=pd.DataFrame()):
+def create_labels(horizon, data: pd.DataFrame):
     """
     Create future price labels for time series forecasting.
     The function shifts the price columns by the specified horizon to create labels for the next time steps.

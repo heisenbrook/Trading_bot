@@ -7,7 +7,7 @@ import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader, random_split
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
-from utils.keys import tv, train_data_folder, generator
+from utils.keys import tv, train_data_folder_tf, generator
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -35,7 +35,7 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
 # Create DataLoaders for each set
 # Initialize model, weights, loss function, optimizer and learning rate scheduler
 
-with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
+with open(os.path.join(train_data_folder_tf, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
 
 btcusdt = preprocess(best_params['horizon'], btcusdt)
@@ -86,7 +86,7 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='mi
 
 train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
 
-td_bot = torch.jit.load(os.path.join(train_data_folder,'td_best_model.pt'))
+td_bot = torch.jit.load(os.path.join(train_data_folder_tf,'td_best_model.pt'))
 
 mae_close, max_drawdown = testing(device, td_bot, eval_loader, full_data)
 
@@ -95,7 +95,7 @@ print(f'Max Drawdown: ${max_drawdown:.2f}')
 
 mae_close_dict = {'mae_close': mae_close.item()}
 
-with open(os.path.join(train_data_folder, 'mae_close.json'), 'w') as f:
+with open(os.path.join(train_data_folder_tf, 'mae_close.json'), 'w') as f:
     json.dump(mae_close_dict, f, indent=4)
 
 # Uncomment to run the Dash app for visualization

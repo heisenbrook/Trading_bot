@@ -4,14 +4,15 @@ import numpy as np
 import torch
 import os
 import json
-from utils.keys import tv, data_folder, train_data_folder, fine_tuning_data_folder
+from utils.keys import get_candles, data_folder, train_data_folder_tf, fine_tuning_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder_lstm
 from utils.data import BTCDataset, preprocess
-from utils.plotting import plot_predictions
+from utils.plotting import plot_predictions_tf, plot_predictions_LSTM
 
 
-def make_predictions(data_loader, mae_close):
+def make_predictions(model, data_loader, mae_close):
     """
-    Makes predictions using the trained model and returns a DataFrame with denormalized predictions."""
+    Makes predictions using the trained model and returns a DataFrame with denormalized predictions.
+    """
     all_preds = []
     all_time = []
     with torch.no_grad():
@@ -36,41 +37,90 @@ def make_predictions(data_loader, mae_close):
 
     return df
 
+def choose_model():
+    """
+    Chooses architecture based on saved model files and input from user.
+    """
+    valid_input = False
+    while valid_input == False:
+        try:
+            input_model = input('Select model to use for predictions (tf/lstm): ').strip().lower()
+            if input_model not in ['tf', 'lstm']:
+                raise ValueError('Invalid model type. Choose "tf" or "lstm".')
+            valid_input = True
+        except ValueError as e:
+            print(e)
+            
 
-if os.path.exists(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt')):
-    print('Loading fine-tuned model for predictions...')
-    model_path = os.path.join(fine_tuning_data_folder,'td_finetuned_model.pt')
-else:
-    print('Loading base model for predictions...')
-    model_path = os.path.join(train_data_folder,'td_best_model.pt')
-model = torch.jit.load(model_path)
-model.to('cpu')
-model.eval()
+    if input_model == 'tf':
+        print('Transformer model selected.')
+        print('------------------------------')
+        if os.path.exists(os.path.join(fine_tuning_data_folder_tf, f'td_finetuned_model.pt')):
+            print('Loading fine-tuned transformer model for predictions...')
+            model_path = os.path.join(fine_tuning_data_folder_tf,'td_finetuned_model.pt')
+        else:
+            print('Loading base transformer model for predictions...')
+            model_path = os.path.join(train_data_folder_tf,'td_best_model.pt')
+        model = torch.jit.load(model_path)
+        model.to('cpu')
+        model.eval()
 
-with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
-    best_params = json.load(f)
+        with open(os.path.join(train_data_folder_tf, 'best_params.json'), 'r') as f:
+            best_params = json.load(f)
 
-if os.path.exists(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json')):
-    with open(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), 'r') as f:
-        results_dict = json.load(f)
+        if os.path.exists(os.path.join(fine_tuning_data_folder_tf, 'continual_learning_log.json')):
+            with open(os.path.join(fine_tuning_data_folder_tf, 'continual_learning_log.json'), 'r') as f:
+                results_dict = json.load(f)
 
-    last_entry = results_dict[-1]
-    if last_entry['mae_close'] == '-':
-        last_entry = results_dict[-2]
+            last_entry = results_dict[-1]
+            if last_entry['mae_close'] == '-':
+                last_entry = results_dict[-2]
 
-    mae_close = last_entry['mae_close']
-else:
-    with open(os.path.join(train_data_folder, 'mae_close.json'), 'r') as f:
-        mae_close_dict = json.load(f)
-    mae_close = mae_close_dict['mae_close']
+            mae_close = last_entry['mae_close']
+        else:
+            with open(os.path.join(train_data_folder_tf, 'mae_close.json'), 'r') as f:
+                mae_close_dict = json.load(f)
+            mae_close = mae_close_dict['mae_close']
+    else:
+        print('LSTM model selected.')
+        print('------------------------------')
+        if os.path.exists(os.path.join(fine_tuning_data_folder_lstm, f'td_finetuned_model_lstm.pt')):
+            print('Loading fine-tuned LSTM model for predictions...')
+            model_path = os.path.join(fine_tuning_data_folder_lstm,'td_finetuned_model_lstm.pt')
+        else:
+            print('Loading base LSTM model for predictions...')
+            model_path = os.path.join(train_data_folder_lstm,'td_best_model_lstm.pt')
+        model = torch.jit.load(model_path)
+        model.to('cpu')
+        model.eval()
+
+        with open(os.path.join(train_data_folder_lstm, 'best_params.json'), 'r') as f:
+            best_params = json.load(f)
+
+        if os.path.exists(os.path.join(fine_tuning_data_folder_lstm, 'continual_learning_log.json')):
+            with open(os.path.join(fine_tuning_data_folder_lstm, 'continual_learning_log.json'), 'r') as f:
+                results_dict = json.load(f)
+
+            last_entry = results_dict[-1]
+            if last_entry['mae_close'] == '-':
+                last_entry = results_dict[-2]
+
+            mae_close = last_entry['mae_close']
+        else:
+            with open(os.path.join(train_data_folder_lstm, 'mae_close.json'), 'r') as f:
+                mae_close_dict = json.load(f)
+            mae_close = mae_close_dict['mae_close']
+
+    return model, best_params, mae_close, input_model
+            
 
 
-btcusdt = tv.get_hist(symbol='BTCUSDT', 
-                      exchange='BINANCE', 
-                      interval=Interval.in_4_hour, 
-                      n_bars=10000,
-                      extended_session=True)
+# Main prediction routine    
 
+btcusdt = get_candles(10000)
+
+
+model, best_params, mae_close, input_model = choose_model()
 
 btcusdt = preprocess(best_params['horizon'], btcusdt)
 btcusdt = btcusdt.iloc[-(best_params['win_size'] + best_params['horizon']):]
@@ -84,7 +134,12 @@ processed_data = BTCDataset(btcusdt,
 data_loader = torch.utils.data.DataLoader(processed_data)
 
 
-pred_df = make_predictions(data_loader, mae_close)
-plot_predictions(btcusdt.iloc[-18:], pred_df)
-pred_df.to_csv(os.path.join(data_folder, 'predictions.csv'))
-print(f'Predictions saved to {os.path.join(data_folder, "predictions.csv")}')
+pred_df = make_predictions(model, data_loader, mae_close)
+if input_model.lower() == 'tf':
+    plot_predictions_tf(btcusdt.iloc[-18:], pred_df)
+    pred_df.to_csv(os.path.join(data_folder, 'predictions_transformer.csv'))
+    print(f'Predictions saved to {os.path.join(data_folder, "predictions_transformer.csv")}')
+else:
+    plot_predictions_LSTM(btcusdt.iloc[-18:], pred_df)
+    pred_df.to_csv(os.path.join(data_folder, 'predictions_lstm.csv'))
+    print(f'Predictions saved to {os.path.join(data_folder, "predictions_lstm.csv")}')

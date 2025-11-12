@@ -1,7 +1,7 @@
 import torch
 import os
 from utils.keys import train_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder
-from utils.plotting import plot_loss, plot_loss_fine_tuning
+from utils.plotting import plot_loss_LSTM, plot_loss_tf, plot_loss_fine_tuning
 from datetime import datetime as dt
 from tqdm import tqdm
 
@@ -100,7 +100,7 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             elif lstm:
                 saved_model.save(os.path.join(train_data_folder_lstm,'td_best_model_lstm.pt'))
             else:
-                saved_model.save(os.path.join(train_data_folder_tf,'td_best_model.pt'))
+                saved_model.save(os.path.join(train_data_folder_tf,'td_best_model_tf.pt'))
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
 
@@ -112,8 +112,10 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
     
     if fine_tuning:
         plot_loss_fine_tuning(train_losses, test_losses)
+    elif lstm:
+        plot_loss_LSTM(train_losses, test_losses)
     else:
-        plot_loss(train_losses, test_losses)
+        plot_loss_tf(train_losses, test_losses)
 
 
 

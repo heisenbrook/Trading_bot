@@ -5,10 +5,10 @@ import os
 from optuna import TrialPruned
 from tqdm import tqdm
 from utils.data import BTCDataset, preprocess
-from utils.keys import train_data_folder, generator
+from utils.keys import train_data_folder_tf, train_data_folder_lstm, generator
 from utils.train import train_epoch, eval_epoch
-from utils.model import FinanceTransf, DirectionalAccuracyLoss
-from utils.plotting import plot_closes, plot_closes_fine_tuning
+from utils.model import FinanceTransf, FinanceLSTM, DirectionalAccuracyLoss
+from utils.plotting import plot_closes_tf, plot_closes_LSTM, plot_closes_fine_tuning
 import numpy as np
 from sklearn.metrics import mean_absolute_error
 
@@ -17,7 +17,7 @@ from sklearn.metrics import mean_absolute_error
 #==================================================
 
 
-def objective(trial, device, btcusdt):
+def objective_tf(trial, device, btcusdt):
     """
     Objective function for hyperparameter optimization using Optuna.
     It defines the model architecture, training process, and evaluation metrics.
@@ -62,8 +62,7 @@ def objective(trial, device, btcusdt):
                           dropout=params['dropout'],
                           activation=params['activation'],
                           horizon=params['horizon'], 
-                          win_size=params['win_size'] 
-)
+                          win_size=params['win_size'])
 
     model.to(device)
 
@@ -117,12 +116,115 @@ def objective(trial, device, btcusdt):
             break
 
     m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
-    loss = (1.0 * m_close) + (5.0 * max_drawdown)
+    loss = m_close + max_drawdown
     print(f'max drawdown: ${max_drawdown:.2f}')
     print(f'MAE Close: ${m_close:.2f}')
     
     return loss
 
+def objective_lstm(trial, device, btcusdt):
+    """
+    Objective function for hyperparameter optimization using Optuna.
+    It defines the model architecture, training process, and evaluation metrics.
+    Similar to the main training loop but adapted for hyperparameter tuning.
+    Adapted for LSTM model.
+    """
+
+    params = {
+        'hidden_size': trial.suggest_int('hidden_size', 32, 128, step=16),
+        'num_layers': trial.suggest_int('n_layers', 2, 6, step=1),
+        'dropout': trial.suggest_float('dropout', 0.1, 0.5, step=0.1),
+        'horizon': trial.suggest_int('horizon', 12, 24, step=6),
+        'win_size': trial.suggest_int('win_size', 64, 256, step=16),
+        'batch_size': trial.suggest_int('batch_size', 32, 128, step=16),
+        'alpha': trial.suggest_float('alpha', 0.1, 0.9, step=0.1),
+        'lr': trial.suggest_float('lr', 1e-5, 1e-3, log=True),
+        'n_epochs': trial.suggest_int('n_epochs', 50, 200, step=10),
+        'optim': trial.suggest_categorical('optim', ['adam', 'sgd'])
+    }
+
+    btcusdt = preprocess(params['horizon'], btcusdt)
+
+
+    full_data = BTCDataset(btcusdt, 
+                           win_size=params['win_size'], 
+                           horizon=params['horizon'])
+
+    train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1], generator=generator)
+
+    train_loader = DataLoader(train_data, params['batch_size'], shuffle=False)
+    test_loader = DataLoader(test_data, params['batch_size'], shuffle=False)
+    eval_loader = DataLoader(eval_data, params['batch_size'], shuffle=False)
+
+    model = FinanceLSTM(input_size=full_data.feat_cols_tot,
+                        hidden_size=params['hidden_size'],
+                        num_layers=params['num_layers'],
+                        n_targets=len(full_data.target_col),
+                        dropout=params['dropout'],
+                        horizon=params['horizon'])
+
+    model.to(device)
+
+    for p in model.parameters():
+        if p.dim() > 1:
+            torch.nn.init.xavier_uniform_(p)
+
+    criterion = DirectionalAccuracyLoss(params['alpha'])
+    if params['optim'] == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'], weight_decay=1e-5)
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=params['lr'], momentum=0.9, weight_decay=1e-5)
+        
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='min', factor=0.5)
+
+    best_test_loss = float('inf')
+
+    train_losses, test_losses = [], []
+    patience = 0
+
+    for epoch in range(params['n_epochs']):
+        model.train()
+        train_loss = train_epoch(device, epoch, params['n_epochs'], model, optimizer, criterion, train_loader)
+        test_loss = eval_epoch(device, epoch, params['n_epochs'], model, criterion, test_loader)
+    
+        scheduler.step(test_loss)
+
+        train_losses.append(train_loss)
+        test_losses.append(test_loss)
+
+        if (epoch + 1) % (params['n_epochs']//10) == 0 or (epoch + 1) == 1:
+            x = dt.now()
+            print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
+
+        if test_loss < best_test_loss:
+            patience = 0
+            best_test_loss = test_loss
+        elif epoch > 10 and test_loss > best_test_loss:
+            patience += 1
+            m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+            tot_loss = m_close + max_drawdown
+            trial.report(tot_loss, epoch)
+            if trial.should_prune():
+                raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | MAE Close: ${m_close:.2f} | Max Drawdown: ${max_drawdown:.2f}')
+
+        if epoch >30 and patience > 30:
+            x = dt.now()
+            print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
+            print('Early stop')
+            break
+
+    m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+    loss = m_close + max_drawdown
+    print(f'max drawdown: ${max_drawdown:.2f}')
+    print(f'MAE Close: ${m_close:.2f}')
+    
+    return loss
+
+
+#============================================
+# Testing functions
+#============================================   
 
 def metrics(targets, preds):
     """
@@ -135,12 +237,7 @@ def metrics(targets, preds):
     return mae_close, max_drawdown
 
 
-#============================================
-# Testing functions
-#============================================   
-
-
-def testing(device, model, loader, full_data, fine_tuning=False):
+def testing(device, model, loader, full_data, fine_tuning=False, lstm=False):
     """
     Evaluate the model on the evaluation dataset and return evaluation metrics.       
     """
@@ -171,13 +268,19 @@ def testing(device, model, loader, full_data, fine_tuning=False):
     preds_real = full_data.denorm_pred(all_preds, all_time)
     targets_real = full_data.denorm_pred(all_targets, all_time)
 
-    preds_real.sort_index().to_csv(os.path.join(train_data_folder,'preds_real.csv'))
-    targets_real.sort_index().to_csv(os.path.join(train_data_folder,'targets_real.csv'))
+    if lstm:
+        preds_real.sort_index().to_csv(os.path.join(train_data_folder_lstm,'preds_real.csv'))
+        targets_real.sort_index().to_csv(os.path.join(train_data_folder_lstm,'targets_real.csv'))
+    else:
+        preds_real.sort_index().to_csv(os.path.join(train_data_folder_tf,'preds_real.csv'))
+        targets_real.sort_index().to_csv(os.path.join(train_data_folder_tf,'targets_real.csv'))
 
     if fine_tuning:
         plot_closes_fine_tuning(targets_real, preds_real)
+    elif lstm:
+        plot_closes_LSTM(targets_real, preds_real)
     else:
-        plot_closes(targets_real, preds_real)
+        plot_closes_tf(targets_real, preds_real)
 
     m_close, max_drawdown = metrics(targets_real, preds_real)
 

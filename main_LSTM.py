@@ -7,7 +7,7 @@ import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader, random_split
 from utils.model import FinanceLSTM, DirectionalAccuracyLoss
-from utils.keys import tv, train_data_folder, generator
+from utils.keys import tv, train_data_folder_lstm, generator
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -35,29 +35,32 @@ btcusdt = tv.get_hist(symbol='BTCUSDT',
 # Create DataLoaders for each set
 # Initialize model, weights, loss function, optimizer and learning rate scheduler
 
+with open(os.path.join(train_data_folder_lstm, 'best_params.json'), 'r') as f:
+    best_params = json.load(f)
 
-btcusdt = preprocess(12, btcusdt)
+btcusdt = preprocess(best_params['horizon'], btcusdt)
 
 full_data = BTCDataset(btcusdt,
-                       win_size=64, 
-                       horizon=12)
+                       win_size=best_params['win_size'], 
+                       horizon=best_params['horizon'])
 
 train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1], generator=generator)
 
-batch_size = 32
+batch_size = best_params['batch_size']
 train_loader = DataLoader(train_data, batch_size, num_workers=4, pin_memory=True, shuffle=False)
 test_loader = DataLoader(test_data, batch_size, num_workers=4, pin_memory=True, shuffle=False)
 eval_loader = DataLoader(eval_data, batch_size, num_workers=4, pin_memory=True, shuffle=False)
 
-lr = 0.001
-alpha = 0.3
+lr = best_params['lr']
+alpha = best_params['alpha']
 
 td_bot = FinanceLSTM(
-    input_size=full_data.feat_cols_num,   
+    input_size=full_data.feat_cols_tot,   
     n_targets=len(full_data.target_col),
-    n_layers=2,
-    hidden_size=64,
-    dropout=0.2
+    num_layers=best_params['n_layers'],
+    hidden_size=best_params['hidden_size'],
+    dropout=best_params['dropout'],
+    horizon=best_params['horizon']
 )
 
 td_bot.to(device)
@@ -76,18 +79,18 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='mi
 # Train and evaluate the model
 # Load the best model and test on evaluation set
 
-train_test(device, 50, td_bot, optimizer, criterion, scheduler, train_loader, test_loader)
+train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader, lstm=True)
 
-td_bot = torch.jit.load(os.path.join(train_data_folder,'td_best_model.pt'))
+td_bot = torch.jit.load(os.path.join(train_data_folder_lstm,'td_best_model_lstm.pt'))
 
-mae_close, max_drawdown = testing(device, td_bot, eval_loader, full_data)
+mae_close, max_drawdown = testing(device, td_bot, eval_loader, full_data, lstm=True)
 
 print(f'MAE Close: ${mae_close:.2f}')
 print(f'Max Drawdown: ${max_drawdown:.2f}')
 
 mae_close_dict = {'mae_close': mae_close.item()}
 
-with open(os.path.join(train_data_folder, 'mae_close.json'), 'w') as f:
+with open(os.path.join(train_data_folder_lstm, 'mae_close.json'), 'w') as f:
     json.dump(mae_close_dict, f, indent=4)
 
 # Uncomment to run the Dash app for visualization

@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, random_split
 import os
 import json
 import schedule
-from utils.keys import train_data_folder, fine_tuning_data_folder, generator, get_candles
+from utils.keys import train_data_folder_tf, fine_tuning_data_folder, generator, get_candles
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -16,7 +16,7 @@ from utils.model import DirectionalAccuracyLoss
 # Transfer Learning modules and continual scheduled learning
 #===========================================================
 
-with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
+with open(os.path.join(train_data_folder_tf, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
 
 device = torch.device('cpu')
@@ -174,7 +174,7 @@ def daily_learning_routine():
     if os.path.exists(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt')):
         model_path = os.path.join(fine_tuning_data_folder,'td_finetuned_model.pt')
     else:
-        model_path = os.path.join(train_data_folder,'td_best_model.pt')
+        model_path = os.path.join(train_data_folder_tf,'td_best_model.pt')
     if os.path.exists(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json')):
         with open(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), 'r') as f:
             results_dict = json.load(f)
