@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, random_split
 import os
 import json
 import schedule
-from utils.keys import train_data_folder_tf, fine_tuning_data_folder, generator, get_candles
+from utils.keys import train_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder_tf, fine_tuning_data_folder_lstm, generator, get_candles
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -17,7 +17,10 @@ from utils.model import DirectionalAccuracyLoss
 #===========================================================
 
 with open(os.path.join(train_data_folder_tf, 'best_params.json'), 'r') as f:
-    best_params = json.load(f)
+    best_params_tf = json.load(f)
+
+with open(os.path.join(train_data_folder_lstm, 'best_params.json'), 'r') as f:
+    best_params_lstm = json.load(f)
 
 device = torch.device('cpu')
 
@@ -66,17 +69,17 @@ class Transfer_learner(nn.Module):
 
         return self.base_model
     
-    def fine_tune(self, n_epochs, optimizer, criterion, scheduler):
-        print('Starting fine-tuning...')
+    def fine_tune(self, model, n_epochs, optimizer, criterion, scheduler, lstm):
         train_test(device, 
                    n_epochs, 
-                   self.base_model, 
+                   model, 
                    optimizer, 
                    criterion, 
                    scheduler, 
                    self.train_loader, 
                    self.test_loader, 
-                   fine_tuning=True)
+                   fine_tuning=True,
+                   lstm=lstm)
 
 
 class Continous_learning(nn.Module):
@@ -84,19 +87,27 @@ class Continous_learning(nn.Module):
     Continual Learning wrapper for the FinanceTransf model.
     Allows training on new tasks while retaining knowledge from previous tasks.
     """
-    def __init__(self, model_path,current_date, retrain_h, retrain_interval=24):
+    def __init__(self, model_path, current_date, retrain_h, retrain_interval=24, lstm=False):
         super().__init__()
         self.model_path = model_path
         self.retrain_interval = retrain_interval
-        self.n_candles = 30
+        self.n_candles = 300
         self.retrain_h = retrain_h
         self.current_date = current_date
+        self.lstm = lstm
 
         self.btcusdt = get_candles(self.n_candles)
-        self.btcusdt = preprocess(best_params['horizon'], self.btcusdt)
+        if self.lstm:
+            self.best_params = best_params_lstm
+            self.folder = fine_tuning_data_folder_lstm
+        else:
+            self.best_params = best_params_tf
+            self.folder = fine_tuning_data_folder_tf
+
+        self.btcusdt = preprocess(self.best_params['horizon'], self.btcusdt)
         self.data = BTCDataset(self.btcusdt,
-                              win_size=best_params['win_size'], 
-                              horizon=best_params['horizon'],
+                              win_size=self.best_params['win_size'], 
+                              horizon=self.best_params['horizon'],
                               is_training=True)
         
     def should_retrain(self):
@@ -112,9 +123,9 @@ class Continous_learning(nn.Module):
     def get_data(self): 
         train_data, test_data, eval_data = random_split(self.data, [0.7 , 0.2, 0.1], generator=generator)
         
-        train_loader = DataLoader(train_data, best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
-        test_loader = DataLoader(test_data, best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
-        eval_loader = DataLoader(eval_data, best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
+        train_loader = DataLoader(train_data, self.best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
+        test_loader = DataLoader(test_data, self.best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
+        eval_loader = DataLoader(eval_data, self.best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
 
         return train_loader, test_loader, eval_loader
 
@@ -123,6 +134,11 @@ class Continous_learning(nn.Module):
             print(f'Last retraining {max(self.retrain_h)}. No retraining needed as of {self.current_date}.')
             return None
         
+        if self.lstm:
+            print('Retraining LSTM model...')
+        else:
+            print('Retraining Transformer model...')
+        print('-----------------------------------')
         print(f'Retraining model as of {self.current_date}...')
 
         train_loader, test_loader, eval_loader = self.get_data()
@@ -130,19 +146,19 @@ class Continous_learning(nn.Module):
         fine_tuner = Transfer_learner(self.model_path, train_loader, test_loader, eval_loader, freeze_base=True)
         model = fine_tuner.load_freeze_model()
 
-        criterion = DirectionalAccuracyLoss(best_params['alpha'])
-        if best_params['optim'] == 'adam':
-            optimizer = torch.optim.Adam(model.parameters(), lr=best_params['lr'], weight_decay=1e-5)
+        criterion = DirectionalAccuracyLoss(self.best_params['alpha'])
+        if self.best_params['optim'] == 'adam':
+            optimizer = torch.optim.Adam(model.parameters(), lr=self.best_params['lr'], weight_decay=1e-5)
         else:
-            optimizer = torch.optim.SGD(model.parameters(), lr=best_params['lr'], momentum=0.9, weight_decay=1e-5)
+            optimizer = torch.optim.SGD(model.parameters(), lr=self.best_params['lr'], momentum=0.9, weight_decay=1e-5)
         
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='min', factor=0.5)
 
-        fine_tuner.fine_tune(best_params['n_epochs'], optimizer, criterion, scheduler)
+        fine_tuner.fine_tune(model, self.best_params['n_epochs'], optimizer, criterion, scheduler, self.lstm)
         print('Fine-tuning completed.')
-        print(f'Saving fine-tuned model in {fine_tuning_data_folder}')
+        print(f'Saving fine-tuned model in {self.folder}')
         print('Evaluating fine-tuned model on evaluation set...')
-        mae_close, max_drawdown = testing(device, model, eval_loader, self.data, fine_tuning=True)
+        mae_close, max_drawdown = testing(device, model, eval_loader, self.data, fine_tuning=True, lstm=self.lstm)
         print(f'MAE Close after fine-tuning: ${mae_close:.2f}')
         print(f'Max Drawdown after fine-tuning: ${max_drawdown:.2f}')
 
@@ -150,7 +166,7 @@ class Continous_learning(nn.Module):
 
 # Utility functions for logging and scheduling
 
-def append_logger_json(file_path, new_entry):
+def append_logger_json(file_path, new_entry, directory):
     """
     Appends a new entry to the JSON logger file.
     """
@@ -162,7 +178,7 @@ def append_logger_json(file_path, new_entry):
 
     logger_data.append(new_entry)
     logger_df = pd.DataFrame(data=logger_data)
-    logger_df.to_csv(os.path.join(fine_tuning_data_folder, 'continual_learning_log.csv'), mode='a', header=not os.path.exists(os.path.join(fine_tuning_data_folder, 'continual_learning_log.csv')), index=False)
+    logger_df.to_csv(os.path.join(directory, 'continual_learning_log.csv'), mode='a', header=not os.path.exists(os.path.join(directory, 'continual_learning_log.csv')), index=False)
 
     with open(file_path, 'w') as f:
         json.dump(logger_data, f, indent=4)
@@ -171,10 +187,27 @@ def daily_learning_routine():
     """
     Routine to perform continual learning on a daily basis.
     """
+    valid_input = False
+    while valid_input == False:
+        try:
+            input_model = input('Select model to fine-tune (tf/lstm): ').strip().lower()
+            if input_model not in ['tf', 'lstm']:
+                raise ValueError('Invalid model type. Choose "tf" or "lstm".')
+            valid_input = True
+        except ValueError as e:
+            print(e)
+
+    if input_model == 'tf':
+        fine_tuning_data_folder = fine_tuning_data_folder_tf
+        train_data_folder = train_data_folder_tf
+    else:
+        fine_tuning_data_folder = fine_tuning_data_folder_lstm
+        train_data_folder = train_data_folder_lstm
+
     if os.path.exists(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt')):
         model_path = os.path.join(fine_tuning_data_folder,'td_finetuned_model.pt')
     else:
-        model_path = os.path.join(train_data_folder_tf,'td_best_model.pt')
+        model_path = os.path.join(train_data_folder,'td_best_model.pt')
     if os.path.exists(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json')):
         with open(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), 'r') as f:
             results_dict = json.load(f)
@@ -183,7 +216,12 @@ def daily_learning_routine():
         retrain_h = []
     current_date_str = dt.now().strftime('%Y-%m-%d %H:%M:%S')
     current_date = dt.strptime(current_date_str, '%Y-%m-%d %H:%M:%S')
-    continual_learner = Continous_learning(model_path, current_date, retrain_h)
+
+    if input_model == 'tf':
+        continual_learner = Continous_learning(model_path, current_date, retrain_h, lstm=False)
+    else:
+        continual_learner = Continous_learning(model_path, current_date, retrain_h, lstm=True)
+
     if continual_learner.should_retrain():
         print(f'Performing continual learning for date: {current_date}')
         mae_close, max_drawdown = continual_learner.continous_learning()
@@ -202,8 +240,7 @@ def daily_learning_routine():
             'max_drawdown': '-'
         }
 
-    append_logger_json(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), result)
-
+    append_logger_json(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), result, fine_tuning_data_folder)  
 daily_learning_routine()
 #schedule.every().day.at('10:40').do(daily_learning_routine)
 

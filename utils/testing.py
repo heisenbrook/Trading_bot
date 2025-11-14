@@ -8,7 +8,7 @@ from utils.data import BTCDataset, preprocess
 from utils.keys import train_data_folder_tf, train_data_folder_lstm, generator
 from utils.train import train_epoch, eval_epoch
 from utils.model import FinanceTransf, FinanceLSTM, DirectionalAccuracyLoss
-from utils.plotting import plot_closes_tf, plot_closes_LSTM, plot_closes_fine_tuning
+from utils.plotting import plot_closes_tf, plot_closes_LSTM, plot_closes_fine_tuning_tf, plot_closes_fine_tuning_LSTM
 import numpy as np
 from sklearn.metrics import mean_absolute_error
 
@@ -276,7 +276,10 @@ def testing(device, model, loader, full_data, fine_tuning=False, lstm=False):
         targets_real.sort_index().to_csv(os.path.join(train_data_folder_tf,'targets_real.csv'))
 
     if fine_tuning:
-        plot_closes_fine_tuning(targets_real, preds_real)
+        if lstm:
+            plot_closes_fine_tuning_LSTM(targets_real, preds_real)
+        else:
+            plot_closes_fine_tuning_tf(targets_real, preds_real)
     elif lstm:
         plot_closes_LSTM(targets_real, preds_real)
     else:

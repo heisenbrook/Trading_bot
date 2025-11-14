@@ -7,7 +7,7 @@ import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader, random_split
 from utils.model import FinanceTransf, DirectionalAccuracyLoss
-from utils.keys import tv, train_data_folder_tf, generator
+from utils.keys import get_candles, train_data_folder_tf, generator
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -22,12 +22,7 @@ from utils.testing import testing
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-btcusdt = tv.get_hist(symbol='BTCUSDT', 
-                      exchange='BINANCE', 
-                      interval=Interval.in_4_hour, 
-                      n_bars=10000,
-                      extended_session=True)
-
+btcusdt = get_candles(10000)
 
 # Load best hyperparameters and prepare datasets
 # Preprocess data

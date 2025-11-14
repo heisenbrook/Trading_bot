@@ -7,7 +7,7 @@ import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader, random_split
 from utils.model import FinanceLSTM, DirectionalAccuracyLoss
-from utils.keys import tv, train_data_folder_lstm, generator
+from utils.keys import get_candles, train_data_folder_lstm, generator
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -22,11 +22,7 @@ from utils.testing import testing
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-btcusdt = tv.get_hist(symbol='BTCUSDT', 
-                      exchange='BINANCE', 
-                      interval=Interval.in_4_hour, 
-                      n_bars=10000,
-                      extended_session=True)
+btcusdt = get_candles(10000)
 
 
 # Load best hyperparameters and prepare datasets
@@ -81,7 +77,7 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='mi
 
 train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader, lstm=True)
 
-td_bot = torch.jit.load(os.path.join(train_data_folder_lstm,'td_best_model_lstm.pt'))
+td_bot = torch.jit.load(os.path.join(train_data_folder_lstm,'td_best_model.pt'))
 
 mae_close, max_drawdown = testing(device, td_bot, eval_loader, full_data, lstm=True)
 

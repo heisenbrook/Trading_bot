@@ -84,12 +84,12 @@ def choose_model():
     else:
         print('LSTM model selected.')
         print('------------------------------')
-        if os.path.exists(os.path.join(fine_tuning_data_folder_lstm, f'td_finetuned_model_lstm.pt')):
+        if os.path.exists(os.path.join(fine_tuning_data_folder_lstm, f'td_finetuned_model.pt')):
             print('Loading fine-tuned LSTM model for predictions...')
-            model_path = os.path.join(fine_tuning_data_folder_lstm,'td_finetuned_model_lstm.pt')
+            model_path = os.path.join(fine_tuning_data_folder_lstm,'td_finetuned_model.pt')
         else:
             print('Loading base LSTM model for predictions...')
-            model_path = os.path.join(train_data_folder_lstm,'td_best_model_lstm.pt')
+            model_path = os.path.join(train_data_folder_lstm,'td_best_model.pt')
         model = torch.jit.load(model_path)
         model.to('cpu')
         model.eval()
