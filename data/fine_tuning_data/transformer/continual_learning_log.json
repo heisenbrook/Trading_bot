@@ -28,5 +28,17 @@
         "retraining_done": false,
         "mae_close": "-",
         "max_drawdown": "-"
+    },
+    {
+        "date": "2025-11-17 14:16:18",
+        "retraining_done": false,
+        "mae_close": "-",
+        "max_drawdown": "-"
+    },
+    {
+        "date": "2025-11-17 14:27:34",
+        "retraining_done": false,
+        "mae_close": "-",
+        "max_drawdown": "-"
     }
 ]

@@ -1,6 +1,4 @@
 from datetime import datetime as dt
-import schedule
-import time
 import torch
 import torch.nn as nn
 import pandas as pd
@@ -88,7 +86,7 @@ class Continous_learning(nn.Module):
     Continual Learning wrapper for the FinanceTransf model.
     Allows training on new tasks while retaining knowledge from previous tasks.
     """
-    def __init__(self, model_path, current_date, retrain_h, retrain_interval=24, lstm=False):
+    def __init__(self, model_path, current_date, retrain_h, retrain_interval=12, lstm=False):
         super().__init__()
         self.model_path = model_path
         self.retrain_interval = retrain_interval
@@ -243,8 +241,19 @@ def daily_learning_routine():
 
     append_logger_json(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), result, fine_tuning_data_folder)  
 
-# Schedule daily continual learning 
-daily_learning_routine()
+# Daily continual learning call and memory cleanup
+if __name__ == "__main__":
+    try:
+        daily_learning_routine()
+    
+    except Exception as e:
+        print(f'Error during continual learning routine: {e}')
+    
+    finally:
+        print('Continual learning routine completed.\n' \
+        'Final memory cleanup.')
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 
