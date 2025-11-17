@@ -1,11 +1,12 @@
 from datetime import datetime as dt
+import schedule
+import time
 import torch
 import torch.nn as nn
 import pandas as pd
 from torch.utils.data import DataLoader, random_split
 import os
 import json
-import schedule
 from utils.keys import train_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder_tf, fine_tuning_data_folder_lstm, generator, get_candles
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
@@ -241,8 +242,10 @@ def daily_learning_routine():
         }
 
     append_logger_json(os.path.join(fine_tuning_data_folder, 'continual_learning_log.json'), result, fine_tuning_data_folder)  
+
+# Schedule daily continual learning 
 daily_learning_routine()
-#schedule.every().day.at('10:40').do(daily_learning_routine)
+
 
 
     

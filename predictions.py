@@ -71,12 +71,9 @@ def choose_model():
         if os.path.exists(os.path.join(fine_tuning_data_folder_tf, 'continual_learning_log.json')):
             with open(os.path.join(fine_tuning_data_folder_tf, 'continual_learning_log.json'), 'r') as f:
                 results_dict = json.load(f)
-
-            last_entry = results_dict[-1]
-            if last_entry['mae_close'] == '-':
-                last_entry = results_dict[-2]
-
-            mae_close = last_entry['mae_close']
+            mae_closes = [entry['mae_close'] for entry in results_dict if entry['mae_close'] != '-']
+            mae_close = mae_closes[-1]
+        
         else:
             with open(os.path.join(train_data_folder_tf, 'mae_close.json'), 'r') as f:
                 mae_close_dict = json.load(f)
@@ -100,12 +97,9 @@ def choose_model():
         if os.path.exists(os.path.join(fine_tuning_data_folder_lstm, 'continual_learning_log.json')):
             with open(os.path.join(fine_tuning_data_folder_lstm, 'continual_learning_log.json'), 'r') as f:
                 results_dict = json.load(f)
-
-            last_entry = results_dict[-1]
-            if last_entry['mae_close'] == '-':
-                last_entry = results_dict[-2]
-
-            mae_close = last_entry['mae_close']
+            mae_closes = [entry['mae_close'] for entry in results_dict if entry['mae_close'] != '-']
+            mae_close = mae_closes[-1]
+            
         else:
             with open(os.path.join(train_data_folder_lstm, 'mae_close.json'), 'r') as f:
                 mae_close_dict = json.load(f)
