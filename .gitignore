@@ -2,4 +2,4 @@ __pycache__
 __init__.py
 keys.py
 double_input.sh
-logs
+logs/
