@@ -1,4 +1,4 @@
-from tvDatafeed import Interval
+import joblib
 import plotly.graph_objects as go
 import numpy as np
 import torch
@@ -9,7 +9,7 @@ from utils.data import BTCDataset, preprocess
 from utils.plotting import plot_predictions_tf, plot_predictions_LSTM
 
 
-def make_predictions(model, data_loader, mae_close):
+def make_predictions(model, data_loader, mae_close, dataset_istance):
     """
     Makes predictions using the trained model and returns a DataFrame with denormalized predictions.
     """
@@ -27,7 +27,7 @@ def make_predictions(model, data_loader, mae_close):
     all_preds = all_preds.reshape(-1)
     all_time = all_time.reshape(-1)
 
-    df = processed_data.denorm_pred(all_preds, all_time)
+    df = dataset_istance.denorm_pred(all_preds, all_time)
     df['next_open'] = df['next_close'].shift(1)
     df['range_low'] = df['next_close'] - mae_close
     df['range_high'] = df['next_close'] + mae_close
@@ -65,6 +65,12 @@ def choose_model():
         model.to('cpu')
         model.eval()
 
+        preprocessor_path = os.path.join(train_data_folder_tf, 'preprocessor.pkl')
+        if not os.path.exists(preprocessor_path):
+            raise FileNotFoundError(f'Preprocessor file not found at {preprocessor_path}')
+        loaded_preprocessor = joblib.load(preprocessor_path)
+        print(f'Preprocessor loaded from {preprocessor_path}')
+
         with open(os.path.join(train_data_folder_tf, 'best_params.json'), 'r') as f:
             best_params = json.load(f)
 
@@ -91,6 +97,12 @@ def choose_model():
         model.to('cpu')
         model.eval()
 
+        preprocessor_path = os.path.join(train_data_folder_lstm, 'preprocessor.pkl')
+        if not os.path.exists(preprocessor_path):
+            raise FileNotFoundError(f'Preprocessor file not found at {preprocessor_path}')
+        loaded_preprocessor = joblib.load(preprocessor_path)
+        print(f'Preprocessor loaded from {preprocessor_path}')
+
         with open(os.path.join(train_data_folder_lstm, 'best_params.json'), 'r') as f:
             best_params = json.load(f)
 
@@ -105,7 +117,7 @@ def choose_model():
                 mae_close_dict = json.load(f)
             mae_close = mae_close_dict['mae_close']
 
-    return model, best_params, mae_close, input_model
+    return model, best_params, mae_close, input_model, loaded_preprocessor
             
 
 
@@ -114,32 +126,29 @@ def choose_model():
 btcusdt = get_candles(10000)
 
 
-model, best_params, mae_close, input_model = choose_model()
+model, best_params, mae_close, input_model, loaded_prep = choose_model()
 
 btcusdt = preprocess(best_params['horizon'], btcusdt)
 btcusdt = btcusdt.iloc[-(best_params['win_size'] + best_params['horizon']):]
 btcusdt.to_csv(os.path.join(data_folder, 'btcusdt_4h_processed.csv'))
 
+btcusdt_copy = btcusdt.copy()
+
 processed_data = BTCDataset(btcusdt,
                            win_size=best_params['win_size'], 
                            horizon=best_params['horizon'],
-                           is_training=True)
-
-inference_data = BTCDataset(btcusdt,
-                           win_size=best_params['win_size'], 
-                           horizon=best_params['horizon'],
                            is_training=False,
-                           preprocessor=processed_data.preprocessor)
+                           preprocessor=loaded_prep)
 
-data_loader = torch.utils.data.DataLoader(inference_data)
+data_loader = torch.utils.data.DataLoader(processed_data)
 
 
-pred_df = make_predictions(model, data_loader, mae_close)
+pred_df = make_predictions(model, data_loader, mae_close, processed_data)
 if input_model.lower() == 'tf':
-    plot_predictions_tf(btcusdt.iloc[-18:], pred_df)
+    plot_predictions_tf(btcusdt_copy.iloc[-18:], pred_df)
     pred_df.to_csv(os.path.join(data_folder, 'predictions_transformer.csv'))
     print(f'Predictions saved to {os.path.join(data_folder, "predictions_transformer.csv")}')
 else:
-    plot_predictions_LSTM(btcusdt.iloc[-18:], pred_df)
+    plot_predictions_LSTM(btcusdt_copy.iloc[-18:], pred_df)
     pred_df.to_csv(os.path.join(data_folder, 'predictions_lstm.csv'))
     print(f'Predictions saved to {os.path.join(data_folder, "predictions_lstm.csv")}')

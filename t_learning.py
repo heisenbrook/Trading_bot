@@ -1,4 +1,5 @@
 from datetime import datetime as dt
+import joblib
 import torch
 import torch.nn as nn
 import pandas as pd
@@ -86,7 +87,7 @@ class Continous_learning(nn.Module):
     Continual Learning wrapper for the FinanceTransf model.
     Allows training on new tasks while retaining knowledge from previous tasks.
     """
-    def __init__(self, model_path, current_date, retrain_h, retrain_interval=12, lstm=False):
+    def __init__(self, model_path, current_date, retrain_h, preprocessor, retrain_interval=12, lstm=False):
         super().__init__()
         self.model_path = model_path
         self.retrain_interval = retrain_interval
@@ -94,6 +95,7 @@ class Continous_learning(nn.Module):
         self.retrain_h = retrain_h
         self.current_date = current_date
         self.lstm = lstm
+        self.preprocessor = preprocessor
 
         self.btcusdt = get_candles(self.n_candles)
         if self.lstm:
@@ -107,7 +109,8 @@ class Continous_learning(nn.Module):
         self.data = BTCDataset(self.btcusdt,
                               win_size=self.best_params['win_size'], 
                               horizon=self.best_params['horizon'],
-                              is_training=True)
+                              is_training=False,
+                              preprocessor=self.preprocessor)
         
     def should_retrain(self):
         if not self.retrain_h:
@@ -202,6 +205,12 @@ def daily_learning_routine():
     else:
         fine_tuning_data_folder = fine_tuning_data_folder_lstm
         train_data_folder = train_data_folder_lstm
+    
+    preprocessor_path = os.path.join(train_data_folder, 'preprocessor.pkl')
+    if not os.path.exists(preprocessor_path):
+        raise FileNotFoundError(f'Preprocessor file not found at {preprocessor_path}')
+    loaded_preprocessor = joblib.load(preprocessor_path)
+    print(f'Preprocessor loaded from {preprocessor_path}')
 
     if os.path.exists(os.path.join(fine_tuning_data_folder, f'td_finetuned_model.pt')):
         model_path = os.path.join(fine_tuning_data_folder,'td_finetuned_model.pt')
@@ -217,9 +226,9 @@ def daily_learning_routine():
     current_date = dt.strptime(current_date_str, '%Y-%m-%d %H:%M:%S')
 
     if input_model == 'tf':
-        continual_learner = Continous_learning(model_path, current_date, retrain_h, lstm=False)
+        continual_learner = Continous_learning(model_path, current_date, retrain_h, loaded_preprocessor, lstm=False)
     else:
-        continual_learner = Continous_learning(model_path, current_date, retrain_h, lstm=True)
+        continual_learner = Continous_learning(model_path, current_date, retrain_h, loaded_preprocessor, lstm=True)
 
     if continual_learner.should_retrain():
         print(f'Performing continual learning for date: {current_date}')

@@ -66,12 +66,12 @@ class BTCDataset(Dataset):
                ],
                 remainder='passthrough'
               )
-            self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
+            self.data.loc[:,self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
         else:
             if preprocessor is None:
                 raise ValueError("Preprocessor must be provided for non-training datasets.")
             self.preprocessor = preprocessor
-            self.data[self.feat_cols] = self.preprocessor.transform(self.data[self.feat_cols])
+            self.data.loc[:,self.feat_cols] = self.preprocessor.transform(self.data[self.feat_cols])
 
         self.data = self.data.ffill()
 
@@ -155,7 +155,7 @@ def preprocess(horizon, data: pd.DataFrame):
     data['OBV'] = talib.OBV(data['close'], data['volume'])
 
     # Create future price labels
-    labels = create_labels(horizon, data)
+    labels = create_labels(data)
     data = data.join(labels)
 
     # Remove rows with NaN values
@@ -164,19 +164,13 @@ def preprocess(horizon, data: pd.DataFrame):
     return data
 
 
-def create_labels(horizon, data: pd.DataFrame):
+def create_labels(data: pd.DataFrame):
     """
     Create future price labels for time series forecasting.
     The function shifts the price columns by the specified horizon to create labels for the next time steps.
     It also removes unnecessary columns to focus on the target variables.
     """
-    label = data.shift(horizon)
-    label = label.iloc[horizon:]
-    label.drop(columns=['high', 'low', 'open', 'volume', 'RSI', 'MOM', 'MACD', 'MACD_SIGNAL', 'MACD_HIST', 'ADX', 'ROC',
-                        'BBANDS_UPPER', 'BBANDS_MIDDLE', 'BBANDS_LOWER', 'SMA_50', 'PLAW', 'PLAW_BANDS_LOW', 'PLAW_BANDS_UP','TSF',
-                        'VAR', 'LINREG', 'STDDEV',
-                        'dist_nearest_support', 'dist_nearest_resistance', 'strength_support', 'strength_resistance',
-                        'OBV'], axis=1, inplace=True)
+    label = data[['close']].copy()
     label = label.rename({'close':'next_close'}, axis='columns')
 
     return label

@@ -41,20 +41,49 @@ def objective_tf(trial, device, btcusdt):
     }
 
     btcusdt = preprocess(params['horizon'], btcusdt)
+    n = len(btcusdt)
+    if n < params['win_size'] + params['horizon']:
+        raise TrialPruned(f'Dataset too small for the given win_size and horizon.')
+    
+    n_train = int(n * 0.7)
+    n_test = int(n * 0.2)
+    n_eval = n - n_train - n_test
 
+    if n_train < params['win_size'] + params['horizon'] or \
+    n_test < params['win_size'] + params['horizon'] or \
+    n_eval < params['win_size'] + params['horizon']:
+        raise TrialPruned(f'Dataset split too small for the given win_size and horizon.')
+    
+    train_df = btcusdt.iloc[:n_train]
+    test_df = btcusdt.iloc[n_train - params['win_size']:n_train + n_test]
+    eval_df = btcusdt.iloc[n_train + n_test - params['win_size']:]
 
-    full_data = BTCDataset(btcusdt, 
+    train_data = BTCDataset(train_df, 
                            win_size=params['win_size'], 
-                           horizon=params['horizon'])
+                           horizon=params['horizon'],
+                           is_training=True)
+    
+    train_preprocessor = train_data.preprocessor
 
-    train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1], generator=generator)
+    test_data = BTCDataset(test_df, 
+                          win_size=params['win_size'], 
+                          horizon=params['horizon'],
+                          is_training=False,
+                          preprocessor=train_preprocessor)
+    
+    eval_data = BTCDataset(eval_df, 
+                          win_size=params['win_size'], 
+                          horizon=params['horizon'],
+                          is_training=False,
+                          preprocessor=train_preprocessor)
+
 
     train_loader = DataLoader(train_data, params['batch_size'], shuffle=False)
     test_loader = DataLoader(test_data, params['batch_size'], shuffle=False)
     eval_loader = DataLoader(eval_data, params['batch_size'], shuffle=False)
 
-    model = FinanceTransf(num_features=full_data.feat_cols_num,
-                          n_targets=len(full_data.target_col),
+    model = FinanceTransf(num_features= train_data.feat_cols_num,
+                          n_targets=len(train_data.target_col),
                           n_layers=params['n_layers'],
                           d_model=params['d_model'],
                           n_heads=params['n_heads'],
@@ -103,7 +132,7 @@ def objective_tf(trial, device, btcusdt):
             best_test_loss = test_loss
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
-            m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+            m_close, max_drawdown = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
             tot_loss = m_close + max_drawdown
             trial.report(tot_loss, epoch)
             if trial.should_prune():
@@ -115,7 +144,7 @@ def objective_tf(trial, device, btcusdt):
             print('Early stop')
             break
 
-    m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+    m_close, max_drawdown = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
     loss = m_close + max_drawdown
     print(f'max drawdown: ${max_drawdown:.2f}')
     print(f'MAE Close: ${m_close:.2f}')
@@ -144,22 +173,51 @@ def objective_lstm(trial, device, btcusdt):
     }
 
     btcusdt = preprocess(params['horizon'], btcusdt)
+    n = len(btcusdt)
+    if n < params['win_size'] + params['horizon']:
+        raise TrialPruned(f'Dataset too small for the given win_size and horizon.')
+    
+    n_train = int(n * 0.7)
+    n_test = int(n * 0.2)
+    n_eval = n - n_train - n_test
 
+    if n_train < params['win_size'] + params['horizon'] or \
+    n_test < params['win_size'] + params['horizon'] or \
+    n_eval < params['win_size'] + params['horizon']:
+        raise TrialPruned(f'Dataset split too small for the given win_size and horizon.')
+    
+    train_df = btcusdt.iloc[:n_train]
+    test_df = btcusdt.iloc[n_train - params['win_size']:n_train + n_test]
+    eval_df = btcusdt.iloc[n_train + n_test - params['win_size']:]
 
-    full_data = BTCDataset(btcusdt, 
+    train_data = BTCDataset(train_df, 
                            win_size=params['win_size'], 
-                           horizon=params['horizon'])
+                           horizon=params['horizon'],
+                           is_training=True)
+    
+    train_preprocessor = train_data.preprocessor
 
-    train_data, test_data, eval_data = random_split(full_data, [0.7 , 0.2, 0.1], generator=generator)
+    test_data = BTCDataset(test_df, 
+                          win_size=params['win_size'], 
+                          horizon=params['horizon'],
+                          is_training=False,
+                          preprocessor=train_preprocessor)
+    
+    eval_data = BTCDataset(eval_df, 
+                          win_size=params['win_size'], 
+                          horizon=params['horizon'],
+                          is_training=False,
+                          preprocessor=train_preprocessor)
+
 
     train_loader = DataLoader(train_data, params['batch_size'], shuffle=False)
     test_loader = DataLoader(test_data, params['batch_size'], shuffle=False)
     eval_loader = DataLoader(eval_data, params['batch_size'], shuffle=False)
 
-    model = FinanceLSTM(input_size=full_data.feat_cols_tot,
+    model = FinanceLSTM(input_size=train_data.feat_cols_tot,
                         hidden_size=params['hidden_size'],
                         num_layers=params['num_layers'],
-                        n_targets=len(full_data.target_col),
+                        n_targets=len(train_data.target_col),
                         dropout=params['dropout'],
                         horizon=params['horizon'])
 
@@ -202,7 +260,7 @@ def objective_lstm(trial, device, btcusdt):
             best_test_loss = test_loss
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
-            m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+            m_close, max_drawdown = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
             tot_loss = m_close + max_drawdown
             trial.report(tot_loss, epoch)
             if trial.should_prune():
@@ -214,7 +272,7 @@ def objective_lstm(trial, device, btcusdt):
             print('Early stop')
             break
 
-    m_close, max_drawdown = optim_testing(device, model, eval_loader, full_data, epoch, params['n_epochs'])
+    m_close, max_drawdown = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
     loss = m_close + max_drawdown
     print(f'max drawdown: ${max_drawdown:.2f}')
     print(f'MAE Close: ${m_close:.2f}')
