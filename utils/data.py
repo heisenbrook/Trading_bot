@@ -18,7 +18,7 @@ class BTCDataset(Dataset):
     It handles feature engineering, normalization, and sequence generation for time series forecasting.  
     It also provides a method for denormalizing predictions back to the original scale.   
     """
-    def __init__(self, features, win_size, horizon, is_training=True):
+    def __init__(self, features, win_size, horizon, is_training=True, preprocessor=None):
 
         self.win_size = win_size
         self.horizon = horizon
@@ -40,50 +40,48 @@ class BTCDataset(Dataset):
         self.feat_cols_tot = len(self.prices_col) + len(self.momentum_col) + len(self.bands_col) + len(self.patterns_col) + len(self.statistical_col) + len(self.volume_col) + len(self.target_col)
         self.timestamps = self.data.index.values
         self.time_index = np.arange(len(self.data))
-
-        self.preprocessor = ColumnTransformer(
-            transformers=[
-                ('prices', Pipeline([
-                         ('robust', RobustScaler()),
-                         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
-                ]), self.prices_col),
-                ('volume', Pipeline([
-                         ('robust', RobustScaler()),
-                         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
-                ]), self.volume_col),
-                ('momentum', StandardScaler(), self.momentum_col),
-                ('patterns', StandardScaler(), self.patterns_col),
-                ('bands', MinMaxScaler(), self.bands_col),
-                ('statistical', Pipeline([
-                         ('robust', RobustScaler()),
-                         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
-                ]), self.statistical_col),
-                ('targets', Pipeline([
-                         ('robust', RobustScaler()),
-                         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
-                ]), self.target_col)
-            ],
-            remainder='passthrough'
-        )
         
         if self.is_training:
+            self.preprocessor = ColumnTransformer(
+                transformers=[
+                    ('prices', Pipeline([
+                             ('robust', RobustScaler()),
+                             ('power', PowerTransformer(method='yeo-johnson', standardize=True))
+                    ]), self.prices_col),
+                    ('volume', Pipeline([
+                             ('robust', RobustScaler()),
+                             ('power', PowerTransformer(method='yeo-johnson', standardize=True))
+                    ]), self.volume_col),
+                    ('momentum', StandardScaler(), self.momentum_col),
+                    ('patterns', StandardScaler(), self.patterns_col),
+                    ('bands', MinMaxScaler(), self.bands_col),
+                    ('statistical', Pipeline([
+                             ('robust', RobustScaler()),
+                             ('power', PowerTransformer(method='yeo-johnson', standardize=True))
+                    ]), self.statistical_col),
+                    ('targets', Pipeline([
+                             ('robust', RobustScaler()),
+                             ('power', PowerTransformer(method='yeo-johnson', standardize=True))
+                    ]), self.target_col)
+               ],
+                remainder='passthrough'
+              )
             self.data[self.feat_cols] = self.preprocessor.fit_transform(self.data[self.feat_cols])
-            self.data = self.data.ffill()
+        else:
+            if preprocessor is None:
+                raise ValueError("Preprocessor must be provided for non-training datasets.")
+            self.preprocessor = preprocessor
+            self.data[self.feat_cols] = self.preprocessor.transform(self.data[self.feat_cols])
+
+        self.data = self.data.ffill()
 
     def __len__(self):
         return max(0, len(self.data) - self.win_size - self.horizon + 1)
 
     def __getitem__(self, i):
-        if self.is_training:
-            x = self.data[self.feat_cols].values[i:i+self.win_size]
-            y = self.data[self.target_col].values[i+self.win_size:i+self.win_size + self.horizon]
-            last_time_index = i + self.win_size + self.horizon -1
-        else:
-            x = self.preprocessor.fit_transform(self.data[self.feat_cols].iloc[i:i+self.win_size])
-            y = self.preprocessor.named_transformers_['targets'].transform(
-                self.data[self.target_col].iloc[i+self.win_size:i+self.win_size + self.horizon]
-            )
-            last_time_index = i + self.win_size + self.horizon -1
+        x = self.data[self.feat_cols].values[i:i+self.win_size]
+        y = self.data[self.target_col].values[i+self.win_size:i+self.win_size + self.horizon]
+        last_time_index = i + self.win_size + self.horizon -1
 
         return torch.FloatTensor(x), torch.FloatTensor(y), last_time_index    
     
