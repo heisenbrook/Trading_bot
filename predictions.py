@@ -123,9 +123,15 @@ btcusdt.to_csv(os.path.join(data_folder, 'btcusdt_4h_processed.csv'))
 processed_data = BTCDataset(btcusdt,
                            win_size=best_params['win_size'], 
                            horizon=best_params['horizon'],
-                           is_training=False)
+                           is_training=True)
 
-data_loader = torch.utils.data.DataLoader(processed_data)
+inference_data = BTCDataset(btcusdt,
+                           win_size=best_params['win_size'], 
+                           horizon=best_params['horizon'],
+                           is_training=False,
+                           preprocessor=processed_data.preprocessor)
+
+data_loader = torch.utils.data.DataLoader(inference_data)
 
 
 pred_df = make_predictions(model, data_loader, mae_close)
