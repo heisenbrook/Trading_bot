@@ -9,7 +9,7 @@ from utils.data import BTCDataset, preprocess
 from utils.plotting import plot_predictions_tf, plot_predictions_LSTM
 
 
-def make_predictions(model, data_loader, mae_close, dataset_istance):
+def make_predictions(model, data_loader, mae_close, dataset_istance, last_known_prices):
     """
     Makes predictions using the trained model and returns a DataFrame with denormalized predictions.
     """
@@ -28,6 +28,11 @@ def make_predictions(model, data_loader, mae_close, dataset_istance):
     all_time = all_time.reshape(-1)
 
     df = dataset_istance.denorm_pred(all_preds, all_time)
+    current_prices = last_known_prices['close'].values
+    pred_returns = df['next_close'].values 
+    pred_prices = current_prices * np.exp(pred_returns)
+    df['next_close'] = pred_prices
+
     df['next_open'] = df['next_close'].shift(1)
     df['range_low'] = df['next_close'] - mae_close
     df['range_high'] = df['next_close'] + mae_close
@@ -142,7 +147,7 @@ processed_data = BTCDataset(btcusdt,
 
 data_loader = torch.utils.data.DataLoader(processed_data)
 
-
+last_known_prices = btcusdt_copy.iloc[-best_params['horizon']:][['close']].reset_index(drop=True)
 pred_df = make_predictions(model, data_loader, mae_close, processed_data)
 if input_model.lower() == 'tf':
     plot_predictions_tf(btcusdt_copy.iloc[-18:], pred_df)

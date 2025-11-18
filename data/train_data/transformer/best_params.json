@@ -1,0 +1,15 @@
+{
+    "n_layers": 4,
+    "d_model": 128,
+    "n_heads": 4,
+    "dim_feedforward": 64,
+    "dropout": 0.2,
+    "activation": "gelu",
+    "horizon": 24,
+    "win_size": 65,
+    "batch_size": 80,
+    "alpha": 0.4,
+    "lr": 2.781093697926551e-05,
+    "n_epochs": 60,
+    "optim": "sgd"
+}

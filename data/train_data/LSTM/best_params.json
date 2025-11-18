@@ -1,0 +1,12 @@
+{
+    "hidden_size": 48,
+    "n_layers": 6,
+    "dropout": 0.5,
+    "horizon": 12,
+    "win_size": 256,
+    "batch_size": 32,
+    "alpha": 0.9,
+    "lr": 0.00010574315785232754,
+    "n_epochs": 70,
+    "optim": "adam"
+}

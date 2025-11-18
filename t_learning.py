@@ -91,26 +91,24 @@ class Continous_learning(nn.Module):
         super().__init__()
         self.model_path = model_path
         self.retrain_interval = retrain_interval
-        self.n_candles = 300
         self.retrain_h = retrain_h
         self.current_date = current_date
         self.lstm = lstm
         self.preprocessor = preprocessor
 
-        self.btcusdt = get_candles(self.n_candles)
+        
         if self.lstm:
             self.best_params = best_params_lstm
             self.folder = fine_tuning_data_folder_lstm
         else:
             self.best_params = best_params_tf
             self.folder = fine_tuning_data_folder_tf
+        
+        self.n_candles = self.best_params['win_size'] + self.best_params['horizon'] + 500
+        self.btcusdt = get_candles(self.n_candles)
 
         self.btcusdt = preprocess(self.best_params['horizon'], self.btcusdt)
-        self.data = BTCDataset(self.btcusdt,
-                              win_size=self.best_params['win_size'], 
-                              horizon=self.best_params['horizon'],
-                              is_training=False,
-                              preprocessor=self.preprocessor)
+
         
     def should_retrain(self):
         if not self.retrain_h:
@@ -123,13 +121,41 @@ class Continous_learning(nn.Module):
         return hours_since_last_retrain >= self.retrain_interval
 
     def get_data(self): 
-        train_data, test_data, eval_data = random_split(self.data, [0.7 , 0.2, 0.1], generator=generator)
+        n = len(self.btcusdt)
+        try:
+            if n < self.best_params['win_size'] + self.best_params['horizon']:
+                raise ValueError(f'Dataset too small for the given win_size and horizon.')
+        except ValueError as e:
+            print(e)
+
+        n_train = int(n * 0.7)
+        n_test = int(n * 0.2)
+
+        train_df = self.btcusdt.iloc[:n_train]
+        test_df = self.btcusdt.iloc[n_train - self.best_params['win_size']:n_train + n_test]
+        eval_df = self.btcusdt.iloc[n_train + n_test - self.best_params['win_size']:]
+
+        train_data = BTCDataset(train_df, 
+                                   win_size=self.best_params['win_size'], 
+                                   horizon=self.best_params['horizon'],
+                                   is_training=False,
+                                   preprocessor=self.preprocessor)
+        test_data = BTCDataset(test_df, 
+                                  win_size=self.best_params['win_size'], 
+                                  horizon=self.best_params['horizon'],
+                                  is_training=False,
+                                  preprocessor=self.preprocessor)
+        eval_data = BTCDataset(eval_df, 
+                                  win_size=self.best_params['win_size'], 
+                                  horizon=self.best_params['horizon'],
+                                  is_training=False,
+                                  preprocessor=self.preprocessor)
         
         train_loader = DataLoader(train_data, self.best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
         test_loader = DataLoader(test_data, self.best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
         eval_loader = DataLoader(eval_data, self.best_params['batch_size'], shuffle=False, pin_memory=False, persistent_workers=False)
 
-        return train_loader, test_loader, eval_loader
+        return train_loader, test_loader, eval_loader, eval_data
 
     def continous_learning(self):
         if not self.should_retrain():
@@ -143,7 +169,7 @@ class Continous_learning(nn.Module):
         print('-----------------------------------')
         print(f'Retraining model as of {self.current_date}...')
 
-        train_loader, test_loader, eval_loader = self.get_data()
+        train_loader, test_loader, eval_loader, eval_data = self.get_data()
         
         fine_tuner = Transfer_learner(self.model_path, train_loader, test_loader, eval_loader, freeze_base=True)
         model = fine_tuner.load_freeze_model()
@@ -160,7 +186,7 @@ class Continous_learning(nn.Module):
         print('Fine-tuning completed.')
         print(f'Saving fine-tuned model in {self.folder}')
         print('Evaluating fine-tuned model on evaluation set...')
-        mae_close, max_drawdown = testing(device, model, eval_loader, self.data, fine_tuning=True, lstm=self.lstm)
+        mae_close, max_drawdown = testing(device, model, eval_loader, eval_data, fine_tuning=True, lstm=self.lstm)
         print(f'MAE Close after fine-tuning: ${mae_close:.2f}')
         print(f'Max Drawdown after fine-tuning: ${max_drawdown:.2f}')
 

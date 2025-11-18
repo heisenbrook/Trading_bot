@@ -59,10 +59,7 @@ class BTCDataset(Dataset):
                              ('robust', RobustScaler()),
                              ('power', PowerTransformer(method='yeo-johnson', standardize=True))
                     ]), self.statistical_col),
-                    ('targets', Pipeline([
-                             ('robust', RobustScaler()),
-                             ('power', PowerTransformer(method='yeo-johnson', standardize=True))
-                    ]), self.target_col)
+                    ('targets', StandardScaler(), self.target_col)
                ],
                 remainder='passthrough'
               )
@@ -155,7 +152,7 @@ def preprocess(horizon, data: pd.DataFrame):
     data['OBV'] = talib.OBV(data['close'], data['volume'])
 
     # Create future price labels
-    labels = create_labels(data)
+    labels = create_labels(horizon, data)
     data = data.join(labels)
 
     # Remove rows with NaN values
@@ -164,14 +161,17 @@ def preprocess(horizon, data: pd.DataFrame):
     return data
 
 
-def create_labels(data: pd.DataFrame):
+def create_labels(horizon, data: pd.DataFrame):
     """
-    Create future price labels for time series forecasting.
+    Create log returns labels for time series forecasting.
     The function shifts the price columns by the specified horizon to create labels for the next time steps.
     It also removes unnecessary columns to focus on the target variables.
     """
-    label = data[['close']].copy()
-    label = label.rename({'close':'next_close'}, axis='columns')
+
+    future_closes = data['close'].shift(-horizon)
+    current_closes = data['close']
+
+    label = np.log(future_closes / current_closes).to_frame(name='next_close')
 
     return label
 

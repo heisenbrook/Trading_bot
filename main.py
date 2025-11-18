@@ -107,14 +107,17 @@ alpha = best_params['alpha']
 # Initialize model
 if input_model == 'tf':
     td_bot = FinanceTransf(
-        input_size=train_data.feat_cols_tot,   
+        num_features=train_data.feat_cols_num,   
         n_targets=len(train_data.target_col),
-        num_layers=best_params['n_layers'],
+        n_layers=best_params['n_layers'],
         d_model=best_params['d_model'],
-        nhead=best_params['nhead'],
+        n_heads=best_params['n_heads'],
         dim_feedforward=best_params['dim_feedforward'],
         dropout=best_params['dropout'],
-        horizon=best_params['horizon']
+        activation=best_params['activation'],
+        horizon=best_params['horizon'],
+        win_size=best_params['win_size']
+        
     )
 else:
     td_bot = FinanceLSTM(
