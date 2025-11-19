@@ -34,8 +34,8 @@ def make_predictions(model, data_loader, mae_close, dataset_istance, last_known_
     df['next_close'] = pred_prices
 
     df['next_open'] = df['next_close'].shift(1)
-    df['range_low'] = df['next_close'] 
-    df['range_high'] = df['next_close']
+    df['range_low'] = df['next_close'] * np.exp(-mae_close)
+    df['range_high'] = df['next_close'] * np.exp(mae_close)
     df = df.rename(columns={'next_open':'open','next_close':'close'})
     df = df.loc[:, ['range_low','open','close','range_high']]
     df.dropna(inplace=True)
@@ -133,7 +133,7 @@ btcusdt = get_candles(10000)
 
 model, best_params, mae_close, input_model, loaded_prep = choose_model()
 
-btcusdt = preprocess(best_params['horizon'], btcusdt)
+btcusdt = preprocess(best_params['horizon'], btcusdt, is_inference=True)
 btcusdt = btcusdt.iloc[-(best_params['win_size'] + best_params['horizon']):]
 btcusdt.to_csv(os.path.join(data_folder, 'btcusdt_4h_processed.csv'))
 

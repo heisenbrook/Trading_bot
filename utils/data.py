@@ -59,7 +59,7 @@ class BTCDataset(Dataset):
                     #         ('robust', RobustScaler()),
                     #         ('power', PowerTransformer(method='yeo-johnson', standardize=True))
                     #]), self.statistical_col),
-                    ('targets', StandardScaler(), self.target_col)
+                    #('targets', StandardScaler(), self.target_col)
                ],
                 remainder='passthrough'
               )
@@ -70,7 +70,8 @@ class BTCDataset(Dataset):
             self.preprocessor = preprocessor
             self.data.loc[:,self.feat_cols] = self.preprocessor.transform(self.data[self.feat_cols])
 
-        self.data = self.data.ffill()
+        self.data = self.data.ffill().bfill()
+
 
     def __len__(self):
         return max(0, len(self.data) - self.win_size - self.horizon + 1)
@@ -90,12 +91,12 @@ class BTCDataset(Dataset):
         y_flat = y.reshape(-1, num_targets)
         
         
-        transf = self.preprocessor.named_transformers_['targets']
+        # transf = self.preprocessor.named_transformers_['targets']
 
-        if isinstance(transf, Pipeline):
-            for _, step in reversed(transf.steps):
-                if hasattr(step, 'inverse_transform'):
-                    y_flat = step.inverse_transform(y_flat)
+        # if isinstance(transf, Pipeline):
+        #     for _, step in reversed(transf.steps):
+        #         if hasattr(step, 'inverse_transform'):
+        #             y_flat = step.inverse_transform(y_flat)
         
         if isinstance(last_time_index, (list, np.ndarray)):
             all_dates = []
@@ -115,7 +116,7 @@ class BTCDataset(Dataset):
 # Preprocessing functions
 # =============================================
 
-def preprocess(horizon, data: pd.DataFrame):
+def preprocess(horizon, data: pd.DataFrame, is_inference=False):
     """
     Main preprocessing function to prepare raw historical data for modeling.
     It computes technical indicators, fits power law trends, and adds support/resistance features.
@@ -135,7 +136,7 @@ def preprocess(horizon, data: pd.DataFrame):
 
     # Overlap indicators
     # data['BBANDS_UPPER'], data['BBANDS_MIDDLE'], data['BBANDS_LOWER'] = talib.BBANDS(data['close'], timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
-    data['SMA_50'] = talib.SMA(data['close'], timeperiod=50)
+    # data['SMA_50'] = talib.SMA(data['close'], timeperiod=50)
     # data['PLAW'] = fit_power_law(data['close'])
     # data['PLAW_BANDS_LOW'], data['PLAW_BANDS_UP'] = powerlaw_bands(data['PLAW'], data['close'])
 
@@ -156,7 +157,10 @@ def preprocess(horizon, data: pd.DataFrame):
     data = data.join(labels)
 
     # Remove rows with NaN values
-    data = data.dropna()
+    if not is_inference:
+        data = data.dropna()
+    else:
+        data = data.dropna(subset=['RSI'])  # Drop rows with NaN in essential features only
 
     return data
 
