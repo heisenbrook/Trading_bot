@@ -146,8 +146,8 @@ def objective_tf(trial, device, btcusdt):
 
     m_close, max_drawdown = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
     loss = m_close + max_drawdown
-    print(f'max drawdown: ${max_drawdown:.2f}')
-    print(f'MAE Close: ${m_close:.2f}')
+    print(f'max drawdown %: {max_drawdown * 100:.2f}%')
+    print(f'MAE Close %: {m_close * 100:.2f}%')
     
     return loss
 
@@ -274,8 +274,8 @@ def objective_lstm(trial, device, btcusdt):
 
     m_close, max_drawdown = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
     loss = m_close + max_drawdown
-    print(f'max drawdown: ${max_drawdown:.2f}')
-    print(f'MAE Close: ${m_close:.2f}')
+    print(f'max drawdown %: {max_drawdown * 100:.2f}%')
+    print(f'MAE Close %: {m_close * 100:.2f}%')
     
     return loss
 

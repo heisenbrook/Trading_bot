@@ -187,8 +187,8 @@ class Continous_learning(nn.Module):
         print(f'Saving fine-tuned model in {self.folder}')
         print('Evaluating fine-tuned model on evaluation set...')
         mae_close, max_drawdown = testing(device, model, eval_loader, eval_data, fine_tuning=True, lstm=self.lstm)
-        print(f'MAE Close after fine-tuning: ${mae_close:.2f}')
-        print(f'Max Drawdown after fine-tuning: ${max_drawdown:.2f}')
+        print(f'max drawdown % after fine-tuning: {max_drawdown * 100:.2f}%')
+        print(f'MAE Close % after fine-tuning: {mae_close * 100:.2f}%')
 
         return mae_close, max_drawdown
 

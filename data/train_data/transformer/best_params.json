@@ -1,15 +1,15 @@
 {
-    "n_layers": 4,
-    "d_model": 128,
-    "n_heads": 4,
-    "dim_feedforward": 64,
-    "dropout": 0.2,
+    "n_layers": 2,
+    "d_model": 48,
+    "n_heads": 8,
+    "dim_feedforward": 128,
+    "dropout": 0.5,
     "activation": "gelu",
-    "horizon": 24,
-    "win_size": 65,
-    "batch_size": 80,
-    "alpha": 0.4,
-    "lr": 2.781093697926551e-05,
-    "n_epochs": 60,
-    "optim": "sgd"
+    "horizon": 18,
+    "win_size": 150,
+    "batch_size": 96,
+    "alpha": 0.7000000000000001,
+    "lr": 2.3246001436361918e-05,
+    "n_epochs": 70,
+    "optim": "adam"
 }

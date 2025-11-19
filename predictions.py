@@ -34,8 +34,8 @@ def make_predictions(model, data_loader, mae_close, dataset_istance, last_known_
     df['next_close'] = pred_prices
 
     df['next_open'] = df['next_close'].shift(1)
-    df['range_low'] = df['next_close'] - mae_close
-    df['range_high'] = df['next_close'] + mae_close
+    df['range_low'] = df['next_close'] 
+    df['range_high'] = df['next_close']
     df = df.rename(columns={'next_open':'open','next_close':'close'})
     df = df.loc[:, ['range_low','open','close','range_high']]
     df.dropna(inplace=True)
@@ -148,7 +148,7 @@ processed_data = BTCDataset(btcusdt,
 data_loader = torch.utils.data.DataLoader(processed_data)
 
 last_known_prices = btcusdt_copy.iloc[-best_params['horizon']:][['close']].reset_index(drop=True)
-pred_df = make_predictions(model, data_loader, mae_close, processed_data)
+pred_df = make_predictions(model, data_loader, mae_close, processed_data, last_known_prices)
 if input_model.lower() == 'tf':
     plot_predictions_tf(btcusdt_copy.iloc[-18:], pred_df)
     pred_df.to_csv(os.path.join(data_folder, 'predictions_transformer.csv'))

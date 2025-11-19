@@ -156,8 +156,8 @@ if input_model == 'tf':
 else:
     mae_close, max_drawdown = testing(device, td_bot, eval_loader, eval_data, lstm=True)
 
-print(f'MAE Close: ${mae_close:.2f}')
-print(f'Max Drawdown: ${max_drawdown:.2f}')
+print(f'max drawdown %: {max_drawdown * 100:.2f}%')
+print(f'MAE Close %: {mae_close * 100:.2f}%')
 
 mae_close_dict = {'mae_close': mae_close.item()}
 
