@@ -18,7 +18,7 @@ class BTCDataset(Dataset):
     It handles feature engineering, normalization, and sequence generation for time series forecasting.  
     It also provides a method for denormalizing predictions back to the original scale.   
     """
-    def __init__(self, features, win_size, horizon, is_training=True, preprocessor=None):
+    def __init__(self, features, win_size, horizon, is_training=True, is_classification=False, preprocessor=None):
 
         self.win_size = win_size
         self.horizon = horizon
@@ -31,7 +31,10 @@ class BTCDataset(Dataset):
         self.prices_col = ['high', 'low', 'open', 'close']
         self.momentum_col = ['RSI']
         self.volume_col = ['volume', 'OBV']
-        self.target_col = ['next_close']
+        if is_classification:
+            self.target_col = ['target_class']
+        else:
+            self.target_col = ['next_close']
         self.feat_cols = self.data.columns.to_list()
         self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.volume_col)]
         self.feat_cols_tot = len(self.prices_col) + len(self.momentum_col) + len(self.volume_col) + len(self.target_col)
@@ -98,7 +101,7 @@ class BTCDataset(Dataset):
 # Preprocessing functions
 # =============================================
 
-def preprocess(horizon, data: pd.DataFrame, is_inference=False):
+def preprocess(horizon, data: pd.DataFrame, is_inference=False, is_classification=False):
     """
     Main preprocessing function to prepare raw historical data for modeling.
     It computes technical indicators, fits power law trends, and adds support/resistance features.
@@ -116,7 +119,10 @@ def preprocess(horizon, data: pd.DataFrame, is_inference=False):
     data['OBV'] = talib.OBV(data['close'], data['volume'])
 
     # Create future price labels
-    labels = create_labels(horizon, data)
+    if is_classification:
+        labels = create_labels_classification(horizon, data)
+    else:
+        labels = create_labels(horizon, data)
     data = data.join(labels)
 
     # Remove rows with NaN values
@@ -141,6 +147,26 @@ def create_labels(horizon, data: pd.DataFrame):
     label = np.log(future_closes / current_closes).to_frame(name='next_close')
 
     return label
+
+def create_labels_classification(horizon, data: pd.DataFrame, threshold=0.001):
+    """
+    Create classification labels for time series forecasting.
+    The function shifts the price columns by the specified horizon to create labels for the next time steps.
+    It classifies the future price movement into three classes: up, down, or stable based on the threshold.
+    1 -> up
+    0 -> stable/down
+    """
+
+    future_closes = data['close'].shift(-horizon)
+    current_closes = data['close']
+
+    label = pd.Series(0, index=data.index, name='target_class')
+
+    returns = future_closes / current_closes
+
+    label[returns > (1 + threshold)] = 1 
+
+    return label.to_frame()
 
 
 

@@ -1,8 +1,8 @@
 import torch
 import os
-from utils.keys import train_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder_tf, fine_tuning_data_folder_lstm
-from utils.plotting import plot_loss_LSTM, plot_loss_tf, plot_loss_fine_tuning_tf, plot_loss_fine_tuning_LSTM
 from datetime import datetime as dt
+from utils.keys import train_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder_tf, fine_tuning_data_folder_lstm
+from utils.plotting import plot_loss, plot_loss_fine_tuning
 from tqdm import tqdm
 
 scaler = torch.amp.GradScaler()
@@ -80,6 +80,16 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
 
     if fine_tuning:
         print('Fine-tuning the model...')
+        if lstm:
+            folder = fine_tuning_data_folder_lstm
+        else:
+            folder = fine_tuning_data_folder_tf
+    elif lstm:
+        print('Training the model from scratch...')
+        folder = train_data_folder_lstm
+    else:
+        print('Training the model from scratch...')
+        folder = train_data_folder_tf
 
     for epoch in range(n_epochs):
         train_loss = train_epoch(device, epoch, n_epochs, model, optimizer, criterion, train_loader)
@@ -99,14 +109,9 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             best_test_loss = test_loss
             saved_model = torch.jit.script(model)
             if fine_tuning:
-                if lstm:
-                    saved_model.save(os.path.join(fine_tuning_data_folder_lstm, f'td_finetuned_model.pt'))
-                else:          
-                    saved_model.save(os.path.join(fine_tuning_data_folder_tf, f'td_finetuned_model.pt'))
-            elif lstm:
-                saved_model.save(os.path.join(train_data_folder_lstm,'td_best_model.pt'))
+                saved_model.save(os.path.join(folder, f'td_finetuned_model.pt'))
             else:
-                saved_model.save(os.path.join(train_data_folder_tf,'td_best_model.pt'))
+                saved_model.save(os.path.join(folder,'td_best_model.pt'))
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
 
@@ -116,15 +121,7 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             print('Early stop')
             break
     
-    if fine_tuning:
-        if lstm:
-            plot_loss_fine_tuning_LSTM(train_losses, test_losses)
-        else:
-            plot_loss_fine_tuning_tf(train_losses, test_losses)
-    elif lstm:
-        plot_loss_LSTM(train_losses, test_losses)
-    else:
-        plot_loss_tf(train_losses, test_losses)
+    plot_loss(train_losses, test_losses, folder)
 
 
 

@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from utils.dash_app import app
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from utils.model import FinanceLSTM, FinanceTransf, DirectionalAccuracyLoss
 from utils.keys import get_candles, train_data_folder_lstm, train_data_folder_tf
 from utils.data import BTCDataset, preprocess

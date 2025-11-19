@@ -3,7 +3,7 @@ import joblib
 import torch
 import torch.nn as nn
 import pandas as pd
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 import os
 import json
 from utils.keys import train_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder_tf, fine_tuning_data_folder_lstm, generator, get_candles

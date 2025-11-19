@@ -116,34 +116,8 @@ class FinanceTransf(nn.Module):
         x = self.out(x)
 
         return x
-    
 
-class DirectionalAccuracyLoss(nn.Module):
-    """
-    Custom loss function that combines Mean Squared Error (MSE) with Directional Accuracy.
-    The loss is a weighted sum of MSE and the proportion of correct directional predictions.    
-    """
-    def __init__(self, alpha):
-        super().__init__()
-        self.alpha = alpha
-        self.mse= nn.MSELoss()
 
-    def forward(self, preds, targets):
-
-        custom_mse = self.mse(preds, targets)
-
-        horizon_size = preds.shape[1]
-        for i in range(horizon_size - 1):       
-            pred_d = preds[:, i, :] - preds[:, i+1, :]
-            target_d = targets[:, i, :] - targets[:, i+1, :]
-
-        preds_s = torch.sign(pred_d)
-        targets_s = torch.sign(target_d)
-        correct = (preds_s == targets_s).float()
-
-        return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
-    
-    
 class FinanceLSTM(nn.Module):
     """
     LSTM model for financial time series forecasting.
@@ -175,3 +149,32 @@ class FinanceLSTM(nn.Module):
         x = self.out(x)
 
         return x
+    
+
+class DirectionalAccuracyLoss(nn.Module):
+    """
+    Custom loss function that combines Mean Squared Error (MSE) with Directional Accuracy.
+    The loss is a weighted sum of MSE and the proportion of correct directional predictions.    
+    """
+    def __init__(self, alpha):
+        super().__init__()
+        self.alpha = alpha
+        self.mse= nn.MSELoss()
+
+    def forward(self, preds, targets):
+
+        custom_mse = self.mse(preds, targets)
+
+        horizon_size = preds.shape[1]
+        for i in range(horizon_size - 1):       
+            pred_d = preds[:, i, :] - preds[:, i+1, :]
+            target_d = targets[:, i, :] - targets[:, i+1, :]
+
+        preds_s = torch.sign(pred_d)
+        targets_s = torch.sign(target_d)
+        correct = (preds_s == targets_s).float()
+
+        return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
+    
+    
+

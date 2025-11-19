@@ -6,7 +6,7 @@ import os
 import json
 from utils.keys import get_candles, data_folder, train_data_folder_tf, fine_tuning_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder_lstm
 from utils.data import BTCDataset, preprocess
-from utils.plotting import plot_predictions_tf, plot_predictions_LSTM
+from utils.plotting import plot_predictions
 
 
 def make_predictions(model, data_loader, mae_close, dataset_istance, last_known_prices):
@@ -150,10 +150,10 @@ data_loader = torch.utils.data.DataLoader(processed_data)
 last_known_prices = btcusdt_copy.iloc[-best_params['horizon']:][['close']].reset_index(drop=True)
 pred_df = make_predictions(model, data_loader, mae_close, processed_data, last_known_prices)
 if input_model.lower() == 'tf':
-    plot_predictions_tf(btcusdt_copy.iloc[-18:], pred_df)
+    plot_predictions(btcusdt_copy.iloc[-18:], pred_df)
     pred_df.to_csv(os.path.join(data_folder, 'predictions_transformer.csv'))
     print(f'Predictions saved to {os.path.join(data_folder, "predictions_transformer.csv")}')
 else:
-    plot_predictions_LSTM(btcusdt_copy.iloc[-18:], pred_df)
+    plot_predictions(btcusdt_copy.iloc[-18:], pred_df, LSTM=True)
     pred_df.to_csv(os.path.join(data_folder, 'predictions_lstm.csv'))
     print(f'Predictions saved to {os.path.join(data_folder, "predictions_lstm.csv")}')
