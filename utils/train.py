@@ -120,8 +120,11 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
             break
-    
-    plot_loss(train_losses, test_losses, folder)
+        
+    if fine_tuning:
+        plot_loss_fine_tuning(train_losses, test_losses, folder)
+    else:
+        plot_loss(train_losses, test_losses, folder)
 
 
 
