@@ -150,10 +150,10 @@ data_loader = torch.utils.data.DataLoader(processed_data)
 last_known_prices = btcusdt_copy.iloc[-best_params['horizon']:][['close']].reset_index(drop=True)
 pred_df = make_predictions(model, data_loader, mae_close, processed_data, last_known_prices)
 if input_model.lower() == 'tf':
-    plot_predictions(btcusdt_copy.iloc[-18:], pred_df)
+    plot_predictions(btcusdt_copy.iloc[-18:], pred_df, data_folder)
     pred_df.to_csv(os.path.join(data_folder, 'predictions_transformer.csv'))
     print(f'Predictions saved to {os.path.join(data_folder, "predictions_transformer.csv")}')
 else:
-    plot_predictions(btcusdt_copy.iloc[-18:], pred_df, LSTM=True)
+    plot_predictions(btcusdt_copy.iloc[-18:], pred_df, data_folder, LSTM=True)
     pred_df.to_csv(os.path.join(data_folder, 'predictions_lstm.csv'))
     print(f'Predictions saved to {os.path.join(data_folder, "predictions_lstm.csv")}')

@@ -24,6 +24,7 @@ class BTCDataset(Dataset):
         self.horizon = horizon
         self.data = features
         self.is_training = is_training
+        self.is_classification = is_classification
 
         if isinstance(self.data, pd.Series):
             self.data = self.data.to_frame()
@@ -31,7 +32,7 @@ class BTCDataset(Dataset):
         self.prices_col = ['high', 'low', 'open', 'close']
         self.momentum_col = ['RSI']
         self.volume_col = ['volume', 'OBV']
-        if is_classification:
+        if self.is_classification:
             self.target_col = ['target_class']
         else:
             self.target_col = ['next_close']
@@ -160,13 +161,13 @@ def create_labels_classification(horizon, data: pd.DataFrame, threshold=0.001):
     future_closes = data['close'].shift(-horizon)
     current_closes = data['close']
 
-    label = pd.Series(0, index=data.index, name='target_class')
+    label = pd.Series(0, index=data.index)
 
     returns = future_closes / current_closes
 
     label[returns > (1 + threshold)] = 1 
 
-    return label.to_frame()
+    return label.to_frame(name='target_class')
 
 
 

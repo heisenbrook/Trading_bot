@@ -156,25 +156,31 @@ class DirectionalAccuracyLoss(nn.Module):
     Custom loss function that combines Mean Squared Error (MSE) with Directional Accuracy.
     The loss is a weighted sum of MSE and the proportion of correct directional predictions.    
     """
-    def __init__(self, alpha):
+    def __init__(self, alpha: float | None, is_classification=False):
         super().__init__()
         self.alpha = alpha
         self.mse= nn.MSELoss()
+        self.bce = nn.BCEWithLogitsLoss()
+        self.is_classification = is_classification
 
     def forward(self, preds, targets):
 
-        custom_mse = self.mse(preds, targets)
+        if self.is_classification:
+            return self.bce(preds, targets)
+        
+        else:
+            custom_mse = self.mse(preds, targets)
 
-        horizon_size = preds.shape[1]
-        for i in range(horizon_size - 1):       
-            pred_d = preds[:, i, :] - preds[:, i+1, :]
-            target_d = targets[:, i, :] - targets[:, i+1, :]
+            horizon_size = preds.shape[1]
+            for i in range(horizon_size - 1):       
+                pred_d = preds[:, i, :] - preds[:, i+1, :]
+                target_d = targets[:, i, :] - targets[:, i+1, :]
 
-        preds_s = torch.sign(pred_d)
-        targets_s = torch.sign(target_d)
-        correct = (preds_s == targets_s).float()
+            preds_s = torch.sign(pred_d)
+            targets_s = torch.sign(target_d)
+            correct = (preds_s == targets_s).float()
 
-        return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
+            return  self.alpha * custom_mse + (1 - self.alpha) * (1 - correct.mean())
     
     
 

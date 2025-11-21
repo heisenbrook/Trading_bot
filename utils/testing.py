@@ -5,24 +5,25 @@ import os
 from optuna import TrialPruned
 from tqdm import tqdm
 from utils.data import BTCDataset, preprocess
-from utils.keys import train_data_folder_tf, train_data_folder_lstm, fine_tuning_data_folder_tf, fine_tuning_data_folder_lstm
+from utils.keys import train_data_folder_tf, train_data_folder_lstm, classification_train_data_folder_tf, classification_train_data_folder_lstm, fine_tuning_data_folder_tf, fine_tuning_data_folder_lstm, classification_fine_tuning_data_folder_tf, classification_fine_tuning_data_folder_lstm
 from utils.train import train_epoch, eval_epoch
 from utils.model import FinanceTransf, FinanceLSTM, DirectionalAccuracyLoss
-from utils.plotting import plot_closes
+from utils.plotting import plot_closes, plot_class_metrics
 import numpy as np
-from sklearn.metrics import mean_absolute_error, accuracy_score, precision_score, confusion_matrix
+from sklearn.metrics import mean_absolute_error, accuracy_score, precision_score, fbeta_score, confusion_matrix, recall_score, roc_curve, auc
 
 #==================================================
 # Hyperparameter optimization and metrics functions
 #==================================================
 
 
-def objective(trial, device, btcusdt, lstm=False):
+def objective(trial, device, btcusdt, lstm=False, is_classification=False):
     """
     Objective function for hyperparameter optimization using Optuna.
     It defines the model architecture, training process, and evaluation metrics.
     Similar to the main training loop but adapted for hyperparameter tuning.
     """
+    # Define model architecture and hyperparameters
     if not lstm:
         params = {
             'n_layers': trial.suggest_int('n_layers', 1, 4),
@@ -40,16 +41,6 @@ def objective(trial, device, btcusdt, lstm=False):
             'optim': trial.suggest_categorical('optim', ['adam', 'sgd'])
         }
 
-        model = FinanceTransf(num_features= train_data.feat_cols_num,
-                          n_targets=len(train_data.target_col),
-                          n_layers=params['n_layers'],
-                          d_model=params['d_model'],
-                          n_heads=params['n_heads'],
-                          dim_feedforward=params['dim_feedforward'],
-                          dropout=params['dropout'],
-                          activation=params['activation'],
-                          horizon=params['horizon'], 
-                          win_size=params['win_size'])
     else:
         params = {
             'hidden_size': trial.suggest_int('hidden_size', 32, 128, step=16),
@@ -63,17 +54,14 @@ def objective(trial, device, btcusdt, lstm=False):
             'n_epochs': trial.suggest_int('n_epochs', 50, 200, step=10),
             'optim': trial.suggest_categorical('optim', ['adam', 'sgd'])
         }
-
-        model = FinanceLSTM(input_size=train_data.feat_cols_tot,
-                        hidden_size=params['hidden_size'],
-                        num_layers=params['num_layers'],
-                        n_targets=len(train_data.target_col),
-                        dropout=params['dropout'],
-                        horizon=params['horizon'])
             
 
+    # Prepare data and dataloaders
+    if is_classification:
+        btcusdt = preprocess(params['horizon'], btcusdt, is_classification=True)
+    else:
+        btcusdt = preprocess(params['horizon'], btcusdt)
 
-    btcusdt = preprocess(params['horizon'], btcusdt)
     n = len(btcusdt)
     if n < params['win_size'] + params['horizon']:
         raise TrialPruned(f'Dataset too small for the given win_size and horizon.')
@@ -91,37 +79,85 @@ def objective(trial, device, btcusdt, lstm=False):
     test_df = btcusdt.iloc[n_train - params['win_size']:n_train + n_test]
     eval_df = btcusdt.iloc[n_train + n_test - params['win_size']:]
 
-    train_data = BTCDataset(train_df, 
-                           win_size=params['win_size'], 
-                           horizon=params['horizon'],
-                           is_training=True)
-    
-    train_preprocessor = train_data.preprocessor
+    if is_classification:
+        train_data = BTCDataset(train_df, 
+                                win_size=params['win_size'], 
+                                horizon=params['horizon'],
+                                is_training=True,
+                                is_classification=True)
+        
+        train_preprocessor = train_data.preprocessor
 
-    test_data = BTCDataset(test_df, 
-                          win_size=params['win_size'], 
-                          horizon=params['horizon'],
-                          is_training=False,
-                          preprocessor=train_preprocessor)
+        test_data = BTCDataset(test_df, 
+                            win_size=params['win_size'], 
+                            horizon=params['horizon'],
+                            is_training=False,
+                            is_classification=True,
+                            preprocessor=train_preprocessor)
     
-    eval_data = BTCDataset(eval_df, 
-                          win_size=params['win_size'], 
-                          horizon=params['horizon'],
-                          is_training=False,
-                          preprocessor=train_preprocessor)
+        eval_data = BTCDataset(eval_df, 
+                            win_size=params['win_size'], 
+                            horizon=params['horizon'],
+                            is_training=False,
+                            is_classification=True,
+                            preprocessor=train_preprocessor)
+    else:
+        train_data = BTCDataset(train_df, 
+                            win_size=params['win_size'], 
+                            horizon=params['horizon'],
+                            is_training=True)
+        
+        train_preprocessor = train_data.preprocessor
+
+        test_data = BTCDataset(test_df, 
+                            win_size=params['win_size'], 
+                            horizon=params['horizon'],
+                            is_training=False,
+                            preprocessor=train_preprocessor)
+    
+        eval_data = BTCDataset(eval_df, 
+                            win_size=params['win_size'], 
+                            horizon=params['horizon'],
+                            is_training=False,
+                            preprocessor=train_preprocessor)
+    
+
 
 
     train_loader = DataLoader(train_data, params['batch_size'], shuffle=False)
     test_loader = DataLoader(test_data, params['batch_size'], shuffle=False)
     eval_loader = DataLoader(eval_data, params['batch_size'], shuffle=False)
 
+    if not lstm:
+        model = FinanceTransf(num_features= train_data.feat_cols_num,
+                          n_targets=len(train_data.target_col),
+                          n_layers=params['n_layers'],
+                          d_model=params['d_model'],
+                          n_heads=params['n_heads'],
+                          dim_feedforward=params['dim_feedforward'],
+                          dropout=params['dropout'],
+                          activation=params['activation'],
+                          horizon=params['horizon'], 
+                          win_size=params['win_size'])
+    else:
+        model = FinanceLSTM(input_size=train_data.feat_cols_tot,
+                        hidden_size=params['hidden_size'],
+                        num_layers=params['num_layers'],
+                        n_targets=len(train_data.target_col),
+                        dropout=params['dropout'],
+                        horizon=params['horizon'])
+
     model.to(device)
 
+    # Initialize weights, criterion, optimizer, and scheduler
     for p in model.parameters():
         if p.dim() > 1:
             torch.nn.init.xavier_uniform_(p)
+    if is_classification:
+        criterion = DirectionalAccuracyLoss(None, is_classification=True)
+    else:
+        criterion = DirectionalAccuracyLoss(params['alpha'])
 
-    criterion = DirectionalAccuracyLoss(params['alpha'])
     if params['optim'] == 'adam':
         optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'], weight_decay=1e-5)
     else:
@@ -135,6 +171,7 @@ def objective(trial, device, btcusdt, lstm=False):
     train_losses, test_losses = [], []
     patience = 0
 
+    # Training loop
     for epoch in range(params['n_epochs']):
         model.train()
         train_loss = train_epoch(device, epoch, params['n_epochs'], model, optimizer, criterion, train_loader)
@@ -154,24 +191,31 @@ def objective(trial, device, btcusdt, lstm=False):
             best_test_loss = test_loss
         elif epoch > 10 and test_loss > best_test_loss:
             patience += 1
-            m_close, max_drawdown = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
-            tot_loss = m_close + max_drawdown
-            trial.report(tot_loss, epoch)
-            if trial.should_prune():
-                raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | MAE Close: ${m_close:.2f} | Max Drawdown: ${max_drawdown:.2f}')
+            if is_classification:
+                metric_dict = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'], is_classification=True)
+                tot_loss = metric_dict['fbeta_score']
+                trial.report(tot_loss, epoch)
+                if trial.should_prune():
+                    raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | F-beta Score: {metric_dict['fbeta_score']:.4f}')
+            else:
+                metric_dict = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
+                m_close = metric_dict['mae_close']
+                max_drawdown = metric_dict['max_drawdown']
+                tot_loss = m_close + max_drawdown
+                trial.report(tot_loss, epoch)
+                if trial.should_prune():
+                    raise TrialPruned(f'Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}% | MAE Close: ${m_close:.2f} | Max Drawdown: ${max_drawdown:.2f}')
 
         if epoch >30 and patience > 30:
             x = dt.now()
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
             break
-
-    m_close, max_drawdown = optim_testing(device, model, eval_loader, eval_data, epoch, params['n_epochs'])
-    loss = m_close + max_drawdown
-    print(f'max drawdown %: {max_drawdown * 100:.2f}%')
-    print(f'MAE Close %: {m_close * 100:.2f}%')
     
-    return loss
+    return tot_loss
+
+
+
 
 
 
@@ -179,19 +223,28 @@ def objective(trial, device, btcusdt, lstm=False):
 # Testing functions
 #============================================   
 
-def metrics(targets, preds):
+def metrics(targets, preds, is_main=False):
     """
-    Calculate evaluation metrics: Mean Absolute Error for open and close prices, and maximum drawdown.
+    Calculate evaluation metrics for regression task: Mean Absolute Error for open and close prices, and maximum drawdown.
     """
 
     mae_close = mean_absolute_error(targets['next_close'], preds['next_close'])
     max_drawdown = np.max(np.abs(targets['next_close'] - preds['next_close']))
 
-    return mae_close, max_drawdown
+    metrics_dict = {
+        'mae_close': mae_close,
+        'max_drawdown': max_drawdown
+    }
 
-def metrics_classification(targets, preds):
+    if is_main:
+        print(f'max drawdown %: {max_drawdown * 100:.2f}%')
+        print(f'MAE Close %: {mae_close * 100:.2f}%')
+
+    return metrics_dict
+
+def metrics_classification(targets, preds, is_main=False):
     """
-    Calculate evaluation metrics for classification: Accuracy.
+    Calculate evaluation metrics for classification task.
     """
     probs = torch.sigmoid(torch.tensor(preds['target_class'].values))
     preds_labels = (probs >= 0.5).int().numpy()
@@ -199,12 +252,33 @@ def metrics_classification(targets, preds):
 
     accuracy = accuracy_score(true_labels, preds_labels)
     precision = precision_score(true_labels, preds_labels, zero_division=0)
+    recall = recall_score(true_labels, preds_labels, zero_division=0)
+    score = fbeta_score(true_labels, preds_labels, beta=0.5, zero_division=0)
     matrix = confusion_matrix(true_labels, preds_labels)
+    fpr, tpr, thresholds = roc_curve(true_labels, probs)
+    roc_auc = auc(fpr, tpr)
 
-    return accuracy, precision, matrix
+    metrics_dict = {
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'fbeta_score': score,
+        'confusion_matrix': matrix,
+        'fpr': fpr,
+        'tpr': tpr,
+        'thresholds': thresholds,
+        'roc_auc': roc_auc
+    }
+
+    if is_main:
+        print(f'Accuracy: {accuracy:.2f}%')
+        print(f'Precision: {precision:.2f}%')
+        print(f'Recall: {recall:.2f}%')
+
+    return metrics_dict
 
 
-def testing(device, model, loader, full_data, fine_tuning=False, lstm=False):
+def testing(device, model, loader, full_data, fine_tuning=False, lstm=False, is_classification=False):
     """
     Evaluate the model on the evaluation dataset and return evaluation metrics.       
     """
@@ -234,26 +308,41 @@ def testing(device, model, loader, full_data, fine_tuning=False, lstm=False):
     preds_real = full_data.denorm_pred(all_preds, all_time)
     targets_real = full_data.denorm_pred(all_targets, all_time)
 
-    if fine_tuning:
-        if lstm:
-            folder = fine_tuning_data_folder_lstm
+    if is_classification:
+        if fine_tuning and lstm:
+            folder = classification_fine_tuning_data_folder_lstm
+        elif fine_tuning and not lstm:
+            folder = classification_fine_tuning_data_folder_tf
+        elif not fine_tuning and lstm:
+            folder = classification_train_data_folder_lstm
         else:
-            folder = fine_tuning_data_folder_tf
-    elif lstm:
-        folder = train_data_folder_lstm
-    else:
-        folder = train_data_folder_tf
+            folder = classification_train_data_folder_tf
+
+        metrics_dict = metrics_classification(targets_real, preds_real, is_main=True)
+        plot_class_metrics(metrics_dict, folder)
+        preds_real.sort_index().to_csv(os.path.join(folder,'preds_real.csv'))
+        targets_real.sort_index().to_csv(os.path.join(folder,'targets_real.csv'))
+        return metrics_dict
     
-    plot_closes(targets_real, preds_real, folder)
-    preds_real.sort_index().to_csv(os.path.join(folder,'preds_real.csv'))
-    targets_real.sort_index().to_csv(os.path.join(folder,'targets_real.csv'))
+    else:
+        if fine_tuning and lstm:
+            folder = fine_tuning_data_folder_lstm
+        elif fine_tuning and not lstm:
+            folder = fine_tuning_data_folder_tf
+        elif not fine_tuning and lstm:
+            folder = train_data_folder_lstm
+        else:
+            folder = train_data_folder_tf
 
-    m_close, max_drawdown = metrics(targets_real, preds_real)
+        metrics_dict = metrics(targets_real, preds_real, is_main=True)
+        plot_closes(targets_real, preds_real, folder)
+        preds_real.sort_index().to_csv(os.path.join(folder,'preds_real.csv'))
+        targets_real.sort_index().to_csv(os.path.join(folder,'targets_real.csv'))
+        return metrics_dict
+    
 
-    return m_close, max_drawdown
 
-
-def optim_testing(device, model, loader, full_data, epoch, n_epochs):
+def optim_testing(device, model, loader, full_data, epoch, n_epochs, is_classification=False):
     """
     Evaluate the model during hyperparameter optimization and return evaluation metrics.       
     """
@@ -284,9 +373,12 @@ def optim_testing(device, model, loader, full_data, epoch, n_epochs):
     preds_real = full_data.denorm_pred(all_preds, all_time)
     targets_real = full_data.denorm_pred(all_targets, all_time)
 
-    m_close, max_drawdown = metrics(targets_real, preds_real)
-
-    return m_close, max_drawdown
+    if is_classification:
+        metrics_dict = metrics_classification(targets_real, preds_real)
+        return metrics_dict
+    else:
+        metrics_dict = metrics(targets_real, preds_real)
+        return metrics_dict
 
 
 

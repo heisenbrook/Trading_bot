@@ -102,3 +102,54 @@ def plot_loss_fine_tuning(train_losses, test_losses, folder):
                   title='Training and Test Loss Over Epochs')
     fig.update_layout(xaxis_title='Epochs', yaxis_title='Loss') 
     fig.write_image(os.path.join(folder, f'Training_loss_fine_tuning_{date_now}.png'))
+
+
+def plot_class_metrics(metrics_dict: dict, folder):
+    """
+    Plots classification metrics and saves the figure.
+    Displays Confusion Matrix and ROC Curve.
+    """
+
+    fig = make_subplots(rows=1, cols=2, 
+                        subplot_titles=('Confusion Matrix', f'ROC Curve (AUC = {metrics_dict["roc_auc"]:.2f})'),
+                        specs=[[{"type": "heatmap"}, {"type": "scatter"}]]
+                        )
+    
+    # Confusion Matrix
+    cm = metrics_dict['confusion_matrix']
+    fig.add_trace(go.Heatmap(z=cm,
+                             x=['Predicted Down (0)', 'Predicted Up (1)'],
+                             y=['Actual Down (0)', 'Actual Up (1)'], 
+                             colorscale='Blues',
+                             showscale=True,
+                             text=cm,
+                             texttemplate="%{text}"),
+                             row=1, col=1)
+    # ROC Curve
+    fpr = metrics_dict['fpr']
+    tpr = metrics_dict['tpr']
+    fig.add_trace(go.Scatter(x=fpr, 
+                             y=tpr, 
+                             mode='lines',
+                             name='ROC Curve',
+                             line=dict(color='red')),
+                             row=1, col=2)
+    
+    # Random Classifier Line
+    fig.add_trace(go.Scatter(x=[0, 1], 
+                             y=[0, 1], 
+                             mode='lines',
+                             name='Random Classifier',
+                             line=dict(color='blue', dash='dash')),
+                             row=1, col=2)
+    
+    fig.update_layout(height=600, 
+                      width=1000,
+                      title='Classification Metrics',
+                      showlegend=True)
+
+    fig.update_xaxes(title_text='False Positive Rate', row=1, col=2)
+    fig.update_yaxes(title_text='True Positive Rate', row=1, col=2) 
+    fig.write_image(os.path.join(folder,'Classification_Metrics.png'))   
+
+

@@ -8,7 +8,7 @@ import torch.optim as optim
 from utils.dash_app import app
 from torch.utils.data import DataLoader
 from utils.model import FinanceLSTM, FinanceTransf, DirectionalAccuracyLoss
-from utils.keys import get_candles, train_data_folder_lstm, train_data_folder_tf
+from utils.keys import get_candles, train_data_folder_lstm, train_data_folder_tf, classification_train_data_folder_tf, classification_train_data_folder_lstm
 from utils.data import BTCDataset, preprocess
 from utils.train import train_test
 from utils.testing import testing
@@ -36,10 +36,24 @@ while valid_input == False:
     except ValueError as e:
         print(e)
 
-if input_model == 'tf':
+valid_input = False
+while valid_input == False:
+    try:
+        input_class = input('Select between classification or regression (class/regr) ').strip().lower()
+        if input_model not in ['class', 'regr']:
+            raise ValueError('Invalid model type. Choose "class" or "regr".')
+        valid_input = True
+    except ValueError as e:
+        print(e)
+
+if input_model == 'tf' and input_class == 'regr':
     train_data_folder = train_data_folder_tf
-else:
+elif input_model == 'tf' and input_class == 'class':
+    train_data_folder = classification_train_data_folder_tf
+elif input_model == 'lstm' and input_class == 'regr':
     train_data_folder = train_data_folder_lstm
+else:
+    train_data_folder = classification_train_data_folder_lstm
 
 
 # Load best hyperparameters and prepare datasets
@@ -52,7 +66,10 @@ else:
 with open(os.path.join(train_data_folder, 'best_params.json'), 'r') as f:
     best_params = json.load(f)
 
-btcusdt = preprocess(best_params['horizon'], btcusdt)
+if input_class == 'class':
+    btcusdt = preprocess(best_params['horizon'], btcusdt, is_classification=True)
+else:
+    btcusdt = preprocess(best_params['horizon'], btcusdt)
 
 n = len(btcusdt)
 if n < best_params['win_size'] + best_params['horizon']:
@@ -71,10 +88,18 @@ train_df = btcusdt.iloc[:n_train]
 test_df = btcusdt.iloc[n_train - best_params['win_size']:n_train + n_test]
 eval_df = btcusdt.iloc[n_train + n_test - best_params['win_size']:]
 
-train_data = BTCDataset(train_df, 
-                           win_size=best_params['win_size'], 
-                           horizon=best_params['horizon'],
-                           is_training=True)
+if input_class == 'class':
+    train_data = BTCDataset(train_df, 
+                            win_size=best_params['win_size'], 
+                            horizon=best_params['horizon'],
+                            is_training=True,
+                            is_classification=True)
+else:
+    train_data = BTCDataset(train_df, 
+                            win_size=best_params['win_size'], 
+                            horizon=best_params['horizon'],
+                            is_training=True)
+
 # Save the preprocessor
 preprocessor_path = os.path.join(train_data_folder, 'preprocessor.pkl')
 joblib.dump(train_data.preprocessor, preprocessor_path)
@@ -134,7 +159,10 @@ for p in td_bot.parameters():
     if p.dim() > 1:
         nn.init.xavier_uniform_(p)
 
-criterion = DirectionalAccuracyLoss(alpha)
+if input_class == 'class':
+    criterion = DirectionalAccuracyLoss(None, is_classification=True)
+else:
+    criterion = DirectionalAccuracyLoss(alpha)
 
 optimizer = optim.Adam(td_bot.parameters(), lr=lr, weight_decay=1e-5)
 
@@ -144,25 +172,38 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='mi
 
 # Train and evaluate the model
 # Load the best model and test on evaluation set
-if input_model == 'tf':
-    train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader, lstm=False)
+if input_class == 'class':
+    if input_model == 'tf':
+        train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader, lstm=False, is_classification=True)
+    else:
+        train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader, lstm=True, is_classification=True)
 else:
-    train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader, lstm=True)
+    if input_model == 'tf':
+        train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader, lstm=False)
+    else:
+        train_test(device, best_params['n_epochs'], td_bot, optimizer, criterion, scheduler, train_loader, test_loader, lstm=True)
 
 td_bot = torch.jit.load(os.path.join(train_data_folder,'td_best_model.pt'))
 
-if input_model == 'tf':
-    mae_close, max_drawdown = testing(device, td_bot, eval_loader, eval_data, lstm=False)
+if input_class == 'regr':
+    if input_model == 'tf':
+        metrics_dict = testing(device, td_bot, eval_loader, eval_data, lstm=False)
+    else:
+        metrics_dict = testing(device, td_bot, eval_loader, eval_data, lstm=True)
+
+    mae_close_dict = {'mae_close': metrics_dict['mae_close'].item()}
+
+    with open(os.path.join(train_data_folder, 'mae_close.json'), 'w') as f:
+        json.dump(mae_close_dict, f, indent=4)
+
 else:
-    mae_close, max_drawdown = testing(device, td_bot, eval_loader, eval_data, lstm=True)
+    if input_model == 'tf':
+        metrics_dict = testing(device, td_bot, eval_loader, eval_data, lstm=False, is_classification=True)
+    else:
+        metrics_dict = testing(device, td_bot, eval_loader, eval_data, lstm=True, is_classification=True)
 
-print(f'max drawdown %: {max_drawdown * 100:.2f}%')
-print(f'MAE Close %: {mae_close * 100:.2f}%')
-
-mae_close_dict = {'mae_close': mae_close.item()}
-
-with open(os.path.join(train_data_folder, 'mae_close.json'), 'w') as f:
-    json.dump(mae_close_dict, f, indent=4)
+    with open(os.path.join(train_data_folder, 'class_metrics.json'), 'w') as f:
+        json.dump(metrics_dict, f, indent=4)
 
 # Uncomment to run the Dash app for visualization
 # app.run(debug=True, use_reloader=False, port=8050)
