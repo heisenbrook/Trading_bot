@@ -1,4 +1,5 @@
 import torch
+from typing import Optional
 import torch.nn as nn
 import numpy as np
 
@@ -83,6 +84,7 @@ class FinanceTransf(nn.Module):
                  horizon, 
                  win_size):
         super().__init__()
+
         self.d_model = d_model
         self.horizon = horizon
  
@@ -130,12 +132,18 @@ class FinanceLSTM(nn.Module):
                  dropout,
                  horizon):
         super().__init__()
+
         self.horizon = horizon
+        lstm_dropout = 0 if num_layers == 1 else dropout
+
         self.lstm = nn.LSTM(input_size=input_size,
                             hidden_size=hidden_size,
                             num_layers=num_layers,
-                            dropout=dropout,
+                            dropout=lstm_dropout,
                             batch_first=True)
+        
+        self.dropout_layer = nn.Dropout(dropout)
+
         self.out = nn.Sequential(
             nn.LayerNorm(hidden_size),
             nn.Linear(hidden_size, 128),
@@ -146,6 +154,7 @@ class FinanceLSTM(nn.Module):
 
         lstm_out, _ = self.lstm(x)
         x = lstm_out[:, -self.horizon:, :]
+        x = self.dropout_layer(x)
         x = self.out(x)
 
         return x
@@ -156,16 +165,17 @@ class DirectionalAccuracyLoss(nn.Module):
     Custom loss function that combines Mean Squared Error (MSE) with Directional Accuracy.
     The loss is a weighted sum of MSE and the proportion of correct directional predictions.    
     """
-    def __init__(self, alpha: float | None, is_classification=False):
+    def __init__(self, alpha: Optional[float], weights: Optional[torch.Tensor], input_class: str):
         super().__init__()
         self.alpha = alpha
         self.mse= nn.MSELoss()
-        self.bce = nn.BCEWithLogitsLoss()
-        self.is_classification = is_classification
+        self.weights = weights
+        self.bce = nn.BCEWithLogitsLoss(pos_weight=self.weights)
+        self.input_class = input_class 
 
     def forward(self, preds, targets):
 
-        if self.is_classification:
+        if self.input_class == 'class':
             return self.bce(preds, targets)
         
         else:

@@ -1,0 +1,11 @@
+{
+    "accuracy": 0.5054945054945055,
+    "precision": 0.5054945054945055,
+    "recall": 1.0,
+    "fbeta_score": 0.5609756097560976,
+    "confusion_matrix": "-",
+    "fpr": "-",
+    "tpr": "-",
+    "thresholds": "-",
+    "roc_auc": 0.5882738414743246
+}

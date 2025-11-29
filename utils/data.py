@@ -18,27 +18,28 @@ class BTCDataset(Dataset):
     It handles feature engineering, normalization, and sequence generation for time series forecasting.  
     It also provides a method for denormalizing predictions back to the original scale.   
     """
-    def __init__(self, features, win_size, horizon, is_training=True, is_classification=False, preprocessor=None):
+    def __init__(self, features, win_size, horizon, input_class, is_training=True, preprocessor=None):
 
         self.win_size = win_size
         self.horizon = horizon
         self.data = features
         self.is_training = is_training
-        self.is_classification = is_classification
+        self.input_class = input_class
 
         if isinstance(self.data, pd.Series):
             self.data = self.data.to_frame()
 
         self.prices_col = ['high', 'low', 'open', 'close']
         self.momentum_col = ['RSI']
-        self.volume_col = ['volume', 'OBV']
-        if self.is_classification:
+        self.trend_col = ['DIST_SMA_200']
+        self.volume_col = ['volume']
+        if self.input_class == 'class':
             self.target_col = ['target_class']
         else:
             self.target_col = ['next_close']
         self.feat_cols = self.data.columns.to_list()
-        self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.volume_col)]
-        self.feat_cols_tot = len(self.prices_col) + len(self.momentum_col) + len(self.volume_col) + len(self.target_col)
+        self.feat_cols_num = [len(self.prices_col), len(self.momentum_col), len(self.trend_col), len(self.volume_col)]
+        self.feat_cols_tot = len(self.prices_col) + len(self.momentum_col) + len(self.trend_col) + len(self.volume_col) + len(self.target_col)
         self.timestamps = self.data.index.values
         self.time_index = np.arange(len(self.data))
         
@@ -54,6 +55,7 @@ class BTCDataset(Dataset):
                              ('power', PowerTransformer(method='yeo-johnson', standardize=True))
                     ]), self.volume_col),
                     ('momentum', StandardScaler(), self.momentum_col),
+                    ('trend', StandardScaler(), self.trend_col)
                ],
                 remainder='passthrough'
               )
@@ -102,13 +104,14 @@ class BTCDataset(Dataset):
 # Preprocessing functions
 # =============================================
 
-def preprocess(horizon, data: pd.DataFrame, is_inference=False, is_classification=False):
+def preprocess(horizon, input_class, data: pd.DataFrame, is_inference=False ):
     """
     Main preprocessing function to prepare raw historical data for modeling.
     It computes technical indicators, fits power law trends, and adds support/resistance features.
     """
     if 'symbol' in data.columns:
         data.drop('symbol', axis=1, inplace=True)
+
 
     # Indicator calculations
     # =============================
@@ -117,10 +120,16 @@ def preprocess(horizon, data: pd.DataFrame, is_inference=False, is_classificatio
     data['RSI'] = talib.RSI(data['close'], timeperiod=14)
 
     # Volume indicators
-    data['OBV'] = talib.OBV(data['close'], data['volume'])
+    # data['OBV'] = talib.OBV(data['close'], data['volume'])
+
+    # Trend indicators
+    data['SMA_200'] = talib.SMA(data['close'], timeperiod=200)
+    data['DIST_SMA_200'] = (data['close'] - data['SMA_200']) / data['SMA_200']
+
+    data.drop(columns=['SMA_200'], inplace=True)
 
     # Create future price labels
-    if is_classification:
+    if input_class == 'class':
         labels = create_labels_classification(horizon, data)
     else:
         labels = create_labels(horizon, data)
@@ -130,7 +139,7 @@ def preprocess(horizon, data: pd.DataFrame, is_inference=False, is_classificatio
     if not is_inference:
         data = data.dropna()
     else:
-        data = data.dropna(subset=['RSI'])  # Drop rows with NaN in essential features only
+        data = data.dropna(subset=['RSI', 'DIST_SMA_200'])  # Drop rows with NaN in essential features only
 
     return data
 

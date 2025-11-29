@@ -1,0 +1,16 @@
+{
+    "n_layers": 1,
+    "d_model": 48,
+    "n_heads": 4,
+    "dim_feedforward": 128,
+    "dropout": 0.2,
+    "weight_decay": 0.0012634743623720955,
+    "activation": "relu",
+    "horizon": 24,
+    "win_size": 247,
+    "batch_size": 96,
+    "alpha": 0.7000000000000001,
+    "lr": 0.00027341398721435846,
+    "n_epochs": 120,
+    "optim": "adam"
+}

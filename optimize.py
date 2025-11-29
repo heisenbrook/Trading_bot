@@ -14,7 +14,7 @@ from utils.testing import objective
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load data
-btcusdt  = get_candles(10000)
+btcusdt, timeframe  = get_candles(10000)
 
 # Set up Optuna study
 pruner = MedianPruner(n_startup_trials=5, n_warmup_steps=15, interval_steps=5)
@@ -39,18 +39,22 @@ while valid_input == False:
         valid_input = True
     except ValueError as e:
         print(e)
+if input_model == 'tf':
+    model_name = 'Transformer'
+else:
+    model_name = 'LSTM'
 
 if input_class == 'class':
     study = optuna.create_study(direction='maximize', 
                                 sampler=sampler, 
                                 pruner=pruner,
-                                study_name='BTC_Transf_Classification',
+                                study_name=f'BTC_{model_name}_Classification',
                                 load_if_exists=True)
 else:
     study = optuna.create_study(direction='minimize', 
                                 sampler=sampler, 
                                 pruner=pruner, 
-                                study_name='BTC_Transf_regression',
+                                study_name=f'BTC_{model_name}_regression',
                                 load_if_exists=True)
 
 # Run optimization
@@ -74,7 +78,7 @@ print(f'Best trial: {best_value}')
 print(f'Best params: {best_params}')
 
 # Save the best parameters to a JSON file
-with open(os.path.join(folder, 'best_params.json'), 'w') as f:
+with open(os.path.join(folder, f'best_params_{timeframe}.json'), 'w') as f:
     json.dump(best_params, f, indent=4)
 
 

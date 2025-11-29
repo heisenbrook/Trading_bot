@@ -1,7 +1,6 @@
 import torch
 import os
 from datetime import datetime as dt
-from utils.keys import train_data_folder_tf, train_data_folder_lstm, classification_train_data_folder_tf, classification_train_data_folder_lstm, fine_tuning_data_folder_tf, fine_tuning_data_folder_lstm, classification_fine_tuning_data_folder_tf, classification_fine_tuning_data_folder_lstm
 from utils.plotting import plot_loss, plot_loss_fine_tuning
 from tqdm import tqdm
 
@@ -68,7 +67,7 @@ def eval_epoch(device, epoch, n_epochs, model, criterion, loader):
 # Main training function
 #============================================
 
-def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_loader, test_loader, fine_tuning=False, lstm=False, is_classification=False):
+def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_loader, test_loader, timeframe, folder, fine_tuning=False ):
     """         
     Main training loop with early stopping and model saving.
     """
@@ -78,32 +77,16 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
     train_losses, test_losses = [], []
     patience = 0
 
-    if is_classification:
-        if fine_tuning:
-            print('Fine-tuning the model...')
-            if lstm:
-                folder = classification_fine_tuning_data_folder_lstm
-            else:
-                folder = classification_fine_tuning_data_folder_tf
-        elif lstm:
-            print('Training the model from scratch...')
-            folder = classification_train_data_folder_lstm
-        else:
-            print('Training the model from scratch...')
-            folder = classification_train_data_folder_tf
+    if fine_tuning:
+        print('Fine-tuning the model...')
     else:
-        if fine_tuning:
-            print('Fine-tuning the model...')
-            if lstm:
-                folder = fine_tuning_data_folder_lstm
-            else:
-                folder = fine_tuning_data_folder_tf
-        elif lstm:
-            print('Training the model from scratch...')
-            folder = train_data_folder_lstm
-        else:
-            print('Training the model from scratch...')
-            folder = train_data_folder_tf
+        print('Training the model from scratch...')
+    
+    if timeframe == '1d':
+        threshold = 25
+    else:
+        threshold = 15
+
 
     for epoch in range(n_epochs):
         train_loss = train_epoch(device, epoch, n_epochs, model, optimizer, criterion, train_loader)
@@ -123,22 +106,22 @@ def train_test(device, n_epochs, model, optimizer, criterion, scheduler, train_l
             best_test_loss = test_loss
             saved_model = torch.jit.script(model)
             if fine_tuning:
-                saved_model.save(os.path.join(folder, f'td_finetuned_model.pt'))
+                saved_model.save(os.path.join(folder, f'td_finetuned_model_{timeframe}.pt'))
             else:
-                saved_model.save(os.path.join(folder,'td_best_model.pt'))
-        elif epoch > 10 and test_loss > best_test_loss:
+                saved_model.save(os.path.join(folder,f'td_best_model_{timeframe}.pt'))
+        elif epoch > 5 and test_loss > best_test_loss:
             patience += 1
 
-        if epoch >30 and patience > 30:
+        if epoch > 5 and patience > threshold:
             x = dt.now()
             print(f'{x.strftime('%Y-%m-%d %H:%M:%S')}| Epoch {epoch + 1} | training loss:{train_loss:.5f}% | test loss:{test_loss:.5f}%')
             print('Early stop')
             break
 
     if fine_tuning:
-        plot_loss_fine_tuning(train_losses, test_losses, folder)
+        plot_loss_fine_tuning(train_losses, test_losses, folder, timeframe)
     else:
-        plot_loss(train_losses, test_losses, folder)
+        plot_loss(train_losses, test_losses, folder, timeframe)
 
 
 
